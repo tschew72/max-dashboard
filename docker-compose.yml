@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+  max-dashboard:
+    build: .
+    container_name: max-dashboard
+    ports:
+      - "127.0.0.1:3010:3010"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/max_dashboard
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-evvolabs2026}
+      - JWT_SECRET=${JWT_SECRET:-max-dashboard-jwt-secret-2026}
+      - NODE_ENV=production
+    volumes:
+      - /root/.openclaw:/root/.openclaw:ro
+      - /root/.outlook-mcp:/root/.outlook-mcp:rw
+      - /var/log:/var/log:ro
+      - /tmp/openclaw-0:/tmp/openclaw-0:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

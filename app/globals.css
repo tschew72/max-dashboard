@@ -1,0 +1,178 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0f0f0f;
+  --card: #1a1a1a;
+  --border: #2a2a2a;
+  --accent: #7c3aed;
+  --accent-light: #a78bfa;
+  --text: #f0f0f0;
+  --muted: #888;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+.bottom-nav-safe { padding-bottom: calc(64px + var(--safe-bottom)); }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--card); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ─── TipTap Rich Text Editor ─────────────────────────────────────── */
+.tiptap-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #4b5563;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+/* Shared render styles for both editor + read-only view */
+.tiptap-editor, .tiptap-render {
+  color: #b6c2cf;
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.tiptap-render {
+  padding: 2px 0;
+}
+
+.tiptap-editor p, .tiptap-render p {
+  margin: 0 0 0.6em;
+}
+.tiptap-editor p:last-child, .tiptap-render p:last-child { margin-bottom: 0; }
+
+.tiptap-editor h2, .tiptap-render h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #c9d1d9;
+  margin: 1em 0 0.4em;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #2c333a;
+}
+.tiptap-editor h3, .tiptap-render h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #c9d1d9;
+  margin: 0.9em 0 0.3em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tiptap-editor ul, .tiptap-render ul,
+.tiptap-editor ol, .tiptap-render ol {
+  padding-left: 1.4em;
+  margin: 0.4em 0;
+}
+.tiptap-editor li, .tiptap-render li { margin: 0.2em 0; }
+.tiptap-editor ol, .tiptap-render ol { list-style-type: decimal; }
+.tiptap-editor ul:not(.tiptap-task-list), .tiptap-render ul:not(.tiptap-task-list) {
+  list-style-type: disc;
+}
+
+/* Checklist / task list */
+.tiptap-task-list { padding-left: 0; list-style: none; }
+.tiptap-task-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0.25em 0;
+}
+.tiptap-task-list li > label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.tiptap-task-list li > label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #0052cc;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.tiptap-task-list li > div { flex: 1; min-width: 0; }
+.tiptap-task-list li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: #626f86;
+}
+
+/* Inline code */
+.tiptap-editor code, .tiptap-render code {
+  background: #2c333a;
+  color: #e3b341;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+}
+
+/* Code block */
+.tiptap-code-block {
+  background: #161b20;
+  border: 1px solid #2c333a;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin: 0.6em 0;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  color: #e6edf3;
+  overflow-x: auto;
+}
+.tiptap-code-block code {
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+/* Blockquote */
+.tiptap-blockquote {
+  border-left: 3px solid #0052cc;
+  padding-left: 12px;
+  margin: 0.6em 0;
+  color: #7a8898;
+  font-style: italic;
+}
+
+/* Bold / italic / underline / strike */
+.tiptap-editor strong, .tiptap-render strong { color: #c9d1d9; font-weight: 700; }
+.tiptap-editor em, .tiptap-render em { color: #adbac7; }
+.tiptap-editor u, .tiptap-render u { text-decoration: underline; text-underline-offset: 2px; }
+.tiptap-editor s, .tiptap-render s { text-decoration: line-through; color: #626f86; }
+
+/* Links */
+.tiptap-editor a, .tiptap-render a {
+  color: #579dff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* HR / divider */
+.tiptap-editor hr, .tiptap-render hr {
+  border: none;
+  border-top: 1px solid #2c333a;
+  margin: 0.8em 0;
+}
+
+/* Editor focus ring */
+.tiptap-editor:focus { outline: none; }
+
+/* Preview strip: clamp description to 3 lines */
+.tiptap-preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
