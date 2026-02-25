@@ -44,6 +44,13 @@ function parseDisk(output: string) {
   return { total, used, percent }
 }
 
+function getOpenClawVersion(): { current: string; latest: string; upToDate: boolean } {
+  const current = safeExec('openclaw --version').trim()
+  const latest = safeExec('npm info openclaw version 2>/dev/null || pnpm info openclaw version 2>/dev/null').trim()
+  const upToDate = !!current && !!latest && current === latest
+  return { current: current || 'unknown', latest: latest || 'unknown', upToDate }
+}
+
 function getLastLearning(): string | null {
   try {
     const dir = '/root/.openclaw/workspace/01-MEMORY/daily'
@@ -80,6 +87,7 @@ export async function GET() {
   const disk = parseDisk(diskOutput)
   const jobs = getJobsHealth()
   const lastLearning = getLastLearning()
+  const openclaw = getOpenClawVersion()
 
-  return NextResponse.json({ gateway, memory, disk, jobs, lastLearning })
+  return NextResponse.json({ gateway, memory, disk, jobs, lastLearning, openclaw })
 }

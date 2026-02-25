@@ -1,81 +1,228 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { LogOut, RefreshCw, Wifi, WifiOff, Cpu, HardDrive, CheckSquare, Briefcase, Brain, Zap } from 'lucide-react'
+import { LogOut, RefreshCw, Plus, LayoutDashboard, AlertTriangle, Clock, Zap, Server, CheckCircle2, Circle, ChevronRight, ThumbsUp, ThumbsDown, Timer, BrainCircuit } from 'lucide-react'
+import Link from 'next/link'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface Task {
+  id: string
+  title: string
+  status: string
+  priority: string
+  assignee: string
+  label: string
+  dueDate?: string
+  _count?: { subtasks: number; comments: number }
+}
 
 interface HealthData {
   gateway: { status: string; pid?: number }
   memory: { total: number; used: number; percent: number }
   disk: { total: string; used: string; percent: number }
   jobs: { total: number; errors: number; disabled: number }
-  tasks: { BACKLOG: number; IN_PROGRESS: number; REVIEW: number; DONE: number }
   lastLearning: string | null
+  openclaw: { current: string; latest: string; upToDate: boolean } | null
 }
 
-function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded ${className}`} style={{ background: 'var(--border)' }} />
+interface Job {
+  id: string
+  name: string
+  scheduleDesc: string
+  nextRun: string | null
+  lastStatus: string
+  enabled: boolean
+  source: string
+  category: string
 }
 
-function ProgressBar({ value, max, color = 'var(--accent)' }: { value: number; max: number; color?: string }) {
-  const pct = Math.min(100, Math.round((value / max) * 100))
-  return (
-    <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
-    </div>
-  )
+interface DashData {
+  tasks: Task[]
+  health: HealthData | null
+  nextJob: Job | null
 }
 
-function Card({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl p-4 flex flex-col gap-3" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-      <div className="flex items-center gap-2">
-        <span style={{ color: 'var(--accent-light)' }}>{icon}</span>
-        <span className="text-sm font-semibold" style={{ color: 'var(--muted)' }}>{title}</span>
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function minutesAgo(iso: string | null): string {
-  if (!iso) return 'Unknown'
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function relTime(iso: string | null): string {
+  if (!iso) return '—'
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Just now'
+  if (mins < 1) return 'just now'
   if (mins < 60) return `${mins}m ago`
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  BACKLOG: '#6b7280',
-  IN_PROGRESS: '#3b82f6',
-  REVIEW: '#f59e0b',
-  DONE: '#10b981',
+function greeting(): { text: string; emoji: string } {
+  const h = new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', hour12: false })
+  const hour = parseInt(h)
+  if (hour < 6) return { text: 'Working late', emoji: '🌙' }
+  if (hour < 12) return { text: 'Good morning', emoji: '☀️' }
+  if (hour < 17) return { text: 'Good afternoon', emoji: '🌤' }
+  if (hour < 21) return { text: 'Good evening', emoji: '🌆' }
+  return { text: 'Good night', emoji: '🌙' }
 }
 
+function sgtTime(): string {
+  return new Date().toLocaleString('en-SG', {
+    timeZone: 'Asia/Singapore',
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  })
+}
+
+const STATUS_CONFIG = {
+  BACKLOG:     { color: '#626f86', label: 'Backlog' },
+  IN_PROGRESS: { color: '#0065ff', label: 'In Progress' },
+  REVIEW:      { color: '#ff8b00', label: 'Review' },
+  DONE:        { color: '#36b37e', label: 'Done' },
+}
+
+const PRIORITY_EMOJI: Record<string, string> = {
+  URGENT: '🔴', HIGH: '🟠', MEDIUM: '🟡', LOW: '🟢'
+}
+
+const LABEL_COLORS: Record<string, string> = {
+  WORK: '#0052cc', PERSONAL: '#6554c0', CONSULTING: '#ff8b00',
+  VAPT: '#bf2600', DEFENSEWATCH: '#00875a', REMINDER: '#0065ff',
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse rounded-lg ${className}`} style={{ background: '#2c333a' }} />
+}
+
+function StatChip({
+  icon, label, value, color = '#b6c2cf', bg = '#22272b',
+}: {
+  icon: React.ReactNode; label: string; value: string | number; color?: string; bg?: string
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-1 rounded-xl p-3 flex-1" style={{ background: bg, border: '1px solid #2c333a' }}>
+      <span style={{ color }}>{icon}</span>
+      <span className="text-xl font-bold" style={{ color }}>{value}</span>
+      <span className="text-[11px] font-medium text-center leading-tight" style={{ color: '#626f86' }}>{label}</span>
+    </div>
+  )
+}
+
+// SVG donut ring
+function DonutRing({ data }: { data: { value: number; color: string; label: string }[] }) {
+  const total = data.reduce((s, d) => s + d.value, 0)
+  if (total === 0) {
+    return (
+      <svg viewBox="0 0 80 80" className="w-24 h-24">
+        <circle cx="40" cy="40" r="30" fill="none" stroke="#2c333a" strokeWidth="10" />
+      </svg>
+    )
+  }
+
+  const radius = 30
+  const circ = 2 * Math.PI * radius
+  let offset = 0
+
+  return (
+    <svg viewBox="0 0 80 80" className="w-24 h-24" style={{ transform: 'rotate(-90deg)' }}>
+      <circle cx="40" cy="40" r={radius} fill="none" stroke="#22272b" strokeWidth="10" />
+      {data.map((d, i) => {
+        const pct = d.value / total
+        const dash = circ * pct
+        const gap = circ - dash
+        const seg = (
+          <circle
+            key={i}
+            cx="40" cy="40" r={radius}
+            fill="none"
+            stroke={d.color}
+            strokeWidth="10"
+            strokeDasharray={`${dash} ${gap}`}
+            strokeDashoffset={-offset}
+          />
+        )
+        offset += dash
+        return seg
+      })}
+    </svg>
+  )
+}
+
+function ProgressBar({ pct, color }: { pct: number; color: string }) {
+  return (
+    <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: '#2c333a' }}>
+      <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
+    </div>
+  )
+}
+
+function TaskRow({ task }: { task: Task }) {
+  const due = task.dueDate ? new Date(task.dueDate) : null
+  const isOverdue = due && due < new Date() && task.status !== 'DONE'
+  const daysUntil = due ? Math.ceil((due.getTime() - Date.now()) / 86400000) : null
+
+  return (
+    <Link href="/tasks">
+      <div className="flex items-center gap-3 py-2.5 px-3 rounded-lg active:bg-white/5"
+        style={{ borderBottom: '1px solid #2c333a20' }}>
+        <div className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ background: LABEL_COLORS[task.label] ?? '#626f86' }} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-white leading-snug truncate">{task.title}</p>
+          {due && (
+            <p className="text-[11px] mt-0.5" style={{ color: isOverdue ? '#ff8f73' : '#626f86' }}>
+              {isOverdue
+                ? `⚠ ${Math.abs(daysUntil!)}d overdue`
+                : daysUntil === 0
+                  ? '📅 Due today'
+                  : daysUntil === 1
+                    ? '📅 Due tomorrow'
+                    : `📅 ${daysUntil}d`}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className="text-xs">{PRIORITY_EMOJI[task.priority]}</span>
+          <ChevronRight size={12} style={{ color: '#3d4f61' }} />
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 export default function HomePage() {
-  const [data, setData] = useState<HealthData | null>(null)
+  const [data, setData] = useState<DashData>({ tasks: [], health: null, nextJob: null })
+  const [reviewTasks, setReviewTasks] = useState<Task[]>([])
+  const [approvingId, setApprovingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  // Empty on server — populated client-side only to avoid SSR hydration mismatch
+  const [time, setTime] = useState('')
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
 
-  const fetchHealth = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     try {
-      const [healthRes, tasksRes] = await Promise.all([
+      const [healthRes, tasksRes, jobsRes] = await Promise.all([
         fetch('/api/system/health'),
         fetch('/api/tasks'),
+        fetch('/api/jobs'),
       ])
-      const health = await healthRes.json()
-      const tasksData = await tasksRes.json()
-      const taskCounts = { BACKLOG: 0, IN_PROGRESS: 0, REVIEW: 0, DONE: 0 }
-      if (Array.isArray(tasksData)) {
-        for (const t of tasksData) {
-          if (t.status in taskCounts) taskCounts[t.status as keyof typeof taskCounts]++
-        }
+      const health = healthRes.ok ? await healthRes.json() : null
+      const tasksRaw = tasksRes.ok ? await tasksRes.json() : []
+      const allTasks: Task[] = Array.isArray(tasksRaw) ? tasksRaw : []
+      setReviewTasks(allTasks.filter(t => t.status === 'REVIEW'))
+
+      // Find next scheduled job
+      let nextJob: Job | null = null
+      if (jobsRes.ok) {
+        const jobs: Job[] = await jobsRes.json()
+        const enabled = jobs.filter(j => j.enabled && j.nextRun && j.source === 'openclaw')
+        enabled.sort((a, b) => new Date(a.nextRun!).getTime() - new Date(b.nextRun!).getTime())
+        nextJob = enabled[0] ?? null
       }
-      setData({ ...health, tasks: taskCounts })
+
+      setData({ tasks: allTasks, health, nextJob })
     } catch (e) {
       console.error(e)
     } finally {
@@ -84,11 +231,28 @@ export default function HomePage() {
     }
   }, [])
 
+  const approveTask = useCallback(async (id: string, approve: boolean) => {
+    setApprovingId(id)
+    try {
+      await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: approve ? 'DONE' : 'BACKLOG' }),
+      })
+      setReviewTasks(prev => prev.filter(t => t.id !== id))
+    } finally {
+      setApprovingId(null)
+    }
+  }, [])
+
   useEffect(() => {
-    fetchHealth()
-    const interval = setInterval(fetchHealth, 30000)
-    return () => clearInterval(interval)
-  }, [fetchHealth])
+    setMounted(true)
+    setTime(sgtTime())
+    fetchAll()
+    const dataInterval = setInterval(fetchAll, 30000)
+    const clockInterval = setInterval(() => setTime(sgtTime()), 10000)
+    return () => { clearInterval(dataInterval); clearInterval(clockInterval) }
+  }, [fetchAll])
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -96,165 +260,402 @@ export default function HomePage() {
     router.refresh()
   }
 
-  const handleRefresh = () => {
-    setRefreshing(true)
-    fetchHealth()
+  const { tasks, health } = data
+  const now = new Date()
+
+  // ── Derived stats ────────────────────────────────────────────────────────
+  const activeTasks  = tasks.filter(t => t.status !== 'DONE')
+  const overdueTasks = tasks.filter(t => t.dueDate && new Date(t.dueDate) < now && t.status !== 'DONE')
+  const urgentTasks  = tasks.filter(t => t.priority === 'URGENT' && t.status !== 'DONE')
+  const doneTasks    = tasks.filter(t => t.status === 'DONE')
+  const donePct      = tasks.length > 0 ? Math.round((doneTasks.length / tasks.length) * 100) : 0
+
+  const upcomingTasks = tasks
+    .filter(t => {
+      if (!t.dueDate || t.status === 'DONE') return false
+      const d = new Date(t.dueDate)
+      return d >= now && d <= new Date(now.getTime() + 48 * 3600000)
+    })
+    .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+
+  const statusCounts = {
+    BACKLOG: tasks.filter(t => t.status === 'BACKLOG').length,
+    IN_PROGRESS: tasks.filter(t => t.status === 'IN_PROGRESS').length,
+    REVIEW: tasks.filter(t => t.status === 'REVIEW').length,
+    DONE: doneTasks.length,
   }
 
+  const donutData = Object.entries(STATUS_CONFIG).map(([key, cfg]) => ({
+    value: statusCounts[key as keyof typeof statusCounts],
+    color: cfg.color,
+    label: cfg.label,
+  }))
+
+  const { text: greet, emoji: greetEmoji } = mounted ? greeting() : { text: 'Hello', emoji: '👋' }
+
   return (
-    <div>
-      {/* Header */}
-      <div className="sticky top-0 z-40 flex items-center justify-between px-4 py-3" style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-2">
-          <span className="text-xl">⚡</span>
-          <span className="text-lg font-bold text-white">Max</span>
+    <div className="min-h-screen pb-24" style={{ background: '#1d2125' }}>
+
+      {/* ── Header ── */}
+      <div className="sticky top-0 z-40 px-4 pt-4 pb-3 flex items-start justify-between"
+        style={{ background: '#1d2125', borderBottom: '1px solid #2c333a' }}>
+        <div>
+          <p className="text-xs font-medium" style={{ color: '#626f86' }}>{greetEmoji} {greet}</p>
+          <h1 className="text-xl font-bold text-white leading-tight">Vince</h1>
+          <p className="text-[11px] mt-0.5" style={{ color: '#626f86' }}>{time}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleRefresh}
-            className="w-9 h-9 flex items-center justify-center rounded-lg"
-            style={{ color: 'var(--muted)' }}
-          >
-            <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+        <div className="flex items-center gap-1.5 pt-1">
+          <button onClick={() => { setRefreshing(true); fetchAll() }}
+            className="w-9 h-9 flex items-center justify-center rounded-xl"
+            style={{ background: '#22272b', color: '#8c9bab' }}>
+            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           </button>
-          <button
-            onClick={handleLogout}
-            className="w-9 h-9 flex items-center justify-center rounded-lg"
-            style={{ color: 'var(--muted)' }}
-          >
-            <LogOut size={18} />
+          <button onClick={handleLogout}
+            className="w-9 h-9 flex items-center justify-center rounded-xl"
+            style={{ background: '#22272b', color: '#8c9bab' }}>
+            <LogOut size={16} />
           </button>
         </div>
       </div>
 
-      {/* Grid */}
-      <div className="p-4 grid grid-cols-1 gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+      <div className="px-4 pt-4 space-y-4">
 
-        {/* Card 1: Gateway Status */}
-        <Card title="Gateway Status" icon={<Wifi size={16} />}>
+        {/* ── Stat chips ── */}
+        <div className="flex gap-3">
           {loading ? (
-            <Skeleton className="h-8 w-32" />
+            <>
+              <Skeleton className="h-20 flex-1" />
+              <Skeleton className="h-20 flex-1" />
+              <Skeleton className="h-20 flex-1" />
+            </>
           ) : (
-            <div className="flex items-center gap-3">
-              <div
-                className="w-3 h-3 rounded-full flex-shrink-0"
-                style={{ background: data?.gateway?.status === 'running' ? '#10b981' : '#ef4444' }}
+            <>
+              <StatChip icon={<LayoutDashboard size={16} />} label="Active" value={activeTasks.length} />
+              <StatChip
+                icon={<AlertTriangle size={16} />} label="Overdue" value={overdueTasks.length}
+                color={overdueTasks.length > 0 ? '#ff8f73' : '#626f86'}
+                bg={overdueTasks.length > 0 ? '#ff563011' : '#22272b'}
               />
-              <div>
-                <p className="text-base font-semibold text-white capitalize">{data?.gateway?.status || 'Unknown'}</p>
-                {data?.gateway?.pid && (
-                  <p className="text-xs" style={{ color: 'var(--muted)' }}>PID: {data.gateway.pid}</p>
-                )}
-              </div>
-            </div>
+              <StatChip
+                icon={<Zap size={16} />} label="Urgent" value={urgentTasks.length}
+                color={urgentTasks.length > 0 ? '#ff8b00' : '#626f86'}
+                bg={urgentTasks.length > 0 ? '#ff8b0011' : '#22272b'}
+              />
+            </>
           )}
-        </Card>
+        </div>
 
-        {/* Card 2: Context Window */}
-        <Card title="Context Window" icon={<Brain size={16} />}>
-          <div>
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-white font-medium">59k / 150k tokens</span>
-              <span style={{ color: 'var(--muted)' }}>39%</span>
+        {/* ── Pending Approvals ── */}
+        {!loading && reviewTasks.length > 0 && (
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #6554c033' }}>
+            <div className="px-4 pt-3 pb-2 flex items-center gap-2" style={{ background: '#6554c008' }}>
+              <ThumbsUp size={12} style={{ color: '#9f8fef' }} />
+              <p className="text-xs font-semibold uppercase tracking-wider flex-1" style={{ color: '#9f8fef' }}>
+                Pending Approval — {reviewTasks.length}
+              </p>
             </div>
-            <ProgressBar value={59} max={150} />
-            <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>⚠ Live data coming soon</p>
-          </div>
-        </Card>
-
-        {/* Card 3: Jobs Health */}
-        <Card title="Jobs Health" icon={<Briefcase size={16} />}>
-          {loading ? (
-            <Skeleton className="h-8 w-full" />
-          ) : (
-            <div className="flex items-center gap-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-white">{data?.jobs?.total ?? 0}</p>
-                <p className="text-xs" style={{ color: 'var(--muted)' }}>Total</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold" style={{ color: '#ef4444' }}>{data?.jobs?.errors ?? 0}</p>
-                <p className="text-xs" style={{ color: 'var(--muted)' }}>Errors</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold" style={{ color: 'var(--muted)' }}>{data?.jobs?.disabled ?? 0}</p>
-                <p className="text-xs" style={{ color: 'var(--muted)' }}>Disabled</p>
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {/* Card 4: Tasks Overview */}
-        <Card title="Tasks Overview" icon={<CheckSquare size={16} />}>
-          {loading ? (
-            <Skeleton className="h-8 w-full" />
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {(['BACKLOG', 'IN_PROGRESS', 'REVIEW', 'DONE'] as const).map(status => (
-                <div key={status} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ background: STATUS_COLORS[status] }} />
-                    <span className="text-sm" style={{ color: 'var(--muted)' }}>{status.replace('_', ' ')}</span>
+            <div className="px-3 pb-3 pt-2 space-y-2">
+              {reviewTasks.slice(0, 3).map(t => (
+                <div key={t.id} className="flex items-center gap-2 rounded-xl p-3"
+                  style={{ background: '#1d2125', border: '1px solid #2c333a' }}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white truncate leading-snug">{t.title}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: '#626f86' }}>{t.assignee} · {t.label}</p>
                   </div>
-                  <span className="text-sm font-semibold text-white">{data?.tasks?.[status] ?? 0}</span>
+                  <div className="flex gap-1.5 flex-shrink-0">
+                    <button
+                      disabled={approvingId === t.id}
+                      onClick={() => approveTask(t.id, true)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ background: '#36b37e22', color: '#57d9a3', border: '1px solid #36b37e44' }}>
+                      <ThumbsUp size={11} /> Approve
+                    </button>
+                    <button
+                      disabled={approvingId === t.id}
+                      onClick={() => approveTask(t.id, false)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ background: '#ff563011', color: '#ff8f73', border: '1px solid #ff563033' }}>
+                      <ThumbsDown size={11} /> Reject
+                    </button>
+                  </div>
                 </div>
               ))}
+              {reviewTasks.length > 3 && (
+                <Link href="/tasks">
+                  <p className="text-center text-xs py-1" style={{ color: '#626f86' }}>+{reviewTasks.length - 3} more</p>
+                </Link>
+              )}
             </div>
-          )}
-        </Card>
+          </div>
+        )}
 
-        {/* Card 5: Server Stats */}
-        <Card title="Server Stats" icon={<Cpu size={16} />}>
-          {loading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-5 w-full" />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span style={{ color: 'var(--muted)' }}>RAM</span>
-                  <span className="text-white font-medium">{data?.memory?.used ?? 0}MB / {data?.memory?.total ?? 0}MB ({data?.memory?.percent ?? 0}%)</span>
-                </div>
-                <ProgressBar
-                  value={data?.memory?.percent ?? 0}
-                  max={100}
-                  color={(data?.memory?.percent ?? 0) > 80 ? '#ef4444' : 'var(--accent)'}
-                />
+        {/* ── Next Scheduled Job ── */}
+        {!loading && data.nextJob && (
+          <Link href="/jobs">
+            <div className="rounded-2xl px-4 py-3 flex items-center gap-3"
+              style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: '#0052cc22' }}>
+                <Timer size={18} style={{ color: '#579dff' }} />
               </div>
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span style={{ color: 'var(--muted)' }}>Disk</span>
-                  <span className="text-white font-medium">{data?.disk?.used ?? 0} / {data?.disk?.total ?? 0} ({data?.disk?.percent ?? 0}%)</span>
-                </div>
-                <ProgressBar
-                  value={data?.disk?.percent ?? 0}
-                  max={100}
-                  color={(data?.disk?.percent ?? 0) > 80 ? '#ef4444' : '#10b981'}
-                />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#626f86' }}>Next job</p>
+                <p className="text-sm font-semibold text-white truncate mt-0.5">{data.nextJob.name}</p>
               </div>
-            </div>
-          )}
-        </Card>
-
-        {/* Card 6: Last Learning */}
-        <Card title="Last Learning" icon={<Zap size={16} />}>
-          {loading ? (
-            <Skeleton className="h-8 w-48" />
-          ) : (
-            <div>
-              <p className="text-base font-semibold text-white">
-                Last cycle: {minutesAgo(data?.lastLearning ?? null)}
-              </p>
-              {data?.lastLearning && (
-                <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-                  {new Date(data.lastLearning).toLocaleString()}
+              <div className="text-right flex-shrink-0">
+                <p className="text-sm font-bold" style={{ color: '#579dff' }}>
+                  {data.nextJob.nextRun ? relTime(data.nextJob.nextRun) : '—'}
                 </p>
+                <p className="text-[10px]" style={{ color: '#626f86' }}>{data.nextJob.scheduleDesc}</p>
+              </div>
+            </div>
+          </Link>
+        )}
+
+        {/* ── Task Progress ring + breakdown ── */}
+        <div className="rounded-2xl p-4" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#626f86' }}>Task Progress</p>
+            <Link href="/tasks" className="text-xs font-semibold px-2.5 py-1 rounded-full"
+              style={{ background: '#0052cc22', color: '#579dff' }}>
+              View board →
+            </Link>
+          </div>
+
+          {loading ? <Skeleton className="h-32" /> : (
+            <div className="flex items-center gap-5">
+              {/* Ring */}
+              <div className="relative flex-shrink-0">
+                <DonutRing data={donutData} />
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-lg font-bold text-white">{donePct}%</span>
+                  <span className="text-[10px]" style={{ color: '#626f86' }}>done</span>
+                </div>
+              </div>
+              {/* Legend */}
+              <div className="flex-1 space-y-2.5">
+                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+                  const count = statusCounts[key as keyof typeof statusCounts]
+                  const pct = tasks.length > 0 ? Math.round((count / tasks.length) * 100) : 0
+                  return (
+                    <div key={key}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span style={{ color: '#8c9bab' }}>{cfg.label}</span>
+                        <span className="font-semibold text-white">{count}</span>
+                      </div>
+                      <ProgressBar pct={pct} color={cfg.color} />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Overdue tasks ── */}
+        {!loading && overdueTasks.length > 0 && (
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #ff563033' }}>
+            <div className="px-4 pt-3 pb-2 flex items-center justify-between"
+              style={{ background: '#ff563008' }}>
+              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#ff8f73' }}>
+                ⚠ Overdue — {overdueTasks.length} task{overdueTasks.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <div className="px-1 pb-1">
+              {overdueTasks.slice(0, 4).map(t => <TaskRow key={t.id} task={t} />)}
+              {overdueTasks.length > 4 && (
+                <Link href="/tasks">
+                  <p className="text-center text-xs py-2" style={{ color: '#626f86' }}>
+                    +{overdueTasks.length - 4} more
+                  </p>
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Upcoming (next 48h) ── */}
+        <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+          <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#626f86' }}>
+              <Clock size={10} className="inline mr-1" />Upcoming · 48h
+            </p>
+            {!loading && upcomingTasks.length > 0 && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                style={{ background: '#0052cc22', color: '#579dff' }}>{upcomingTasks.length}</span>
+            )}
+          </div>
+          {loading ? (
+            <div className="px-4 pb-3 space-y-2">
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+            </div>
+          ) : upcomingTasks.length === 0 ? (
+            <div className="px-4 pb-4 pt-1 flex items-center gap-2" style={{ color: '#626f86' }}>
+              <CheckCircle2 size={14} />
+              <p className="text-sm">Nothing due in the next 48 hours 🎉</p>
+            </div>
+          ) : (
+            <div className="px-1 pb-1">
+              {upcomingTasks.slice(0, 5).map(t => <TaskRow key={t.id} task={t} />)}
+              {upcomingTasks.length > 5 && (
+                <Link href="/tasks">
+                  <p className="text-center text-xs py-2" style={{ color: '#626f86' }}>
+                    +{upcomingTasks.length - 5} more
+                  </p>
+                </Link>
               )}
             </div>
           )}
-        </Card>
+        </div>
+
+        {/* ── Quick Actions ── */}
+        <div className="rounded-2xl p-4" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#626f86' }}>Quick Actions</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Link href="/tasks?new=1">
+              <div className="flex items-center gap-2 rounded-xl px-3 py-3"
+                style={{ background: '#0052cc', color: '#fff' }}>
+                <Plus size={16} />
+                <span className="text-sm font-semibold">New Task</span>
+              </div>
+            </Link>
+            <Link href="/tasks">
+              <div className="flex items-center gap-2 rounded-xl px-3 py-3"
+                style={{ background: '#2c333a', color: '#b6c2cf', border: '1px solid #3d4f61' }}>
+                <LayoutDashboard size={16} />
+                <span className="text-sm font-semibold">View Board</span>
+              </div>
+            </Link>
+            <Link href="/jobs">
+              <div className="flex items-center gap-2 rounded-xl px-3 py-3"
+                style={{ background: '#2c333a', color: '#b6c2cf', border: '1px solid #3d4f61' }}>
+                <Zap size={16} />
+                <span className="text-sm font-semibold">Cron Jobs</span>
+              </div>
+            </Link>
+            <Link href="/brain">
+              <div className="flex items-center gap-2 rounded-xl px-3 py-3"
+                style={{ background: '#2c333a', color: '#b6c2cf', border: '1px solid #3d4f61' }}>
+                <BrainCircuit size={16} />
+                <span className="text-sm font-semibold">Brain</span>
+              </div>
+            </Link>
+          </div>
+        </div>
+
+        {/* ── System Health ── */}
+        <div className="rounded-2xl p-4 space-y-4" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#626f86' }}>
+              <Server size={10} className="inline mr-1" />System Health
+            </p>
+            {health && (
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: health.gateway.status === 'running' ? '#36b37e' : '#ff5630' }} />
+                <span className="text-[11px] font-medium capitalize"
+                  style={{ color: health.gateway.status === 'running' ? '#36b37e' : '#ff5630' }}>
+                  {health.gateway.status}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-8" />
+              <Skeleton className="h-8" />
+            </div>
+          ) : health ? (
+            <div className="space-y-3">
+              {/* RAM */}
+              <div>
+                <div className="flex justify-between text-xs mb-1.5">
+                  <span style={{ color: '#8c9bab' }}>RAM</span>
+                  <span className="font-semibold text-white">
+                    {health.memory.used}MB / {health.memory.total}MB
+                    <span className="ml-1.5 font-normal" style={{ color: health.memory.percent > 80 ? '#ff8f73' : '#626f86' }}>
+                      ({health.memory.percent}%)
+                    </span>
+                  </span>
+                </div>
+                <ProgressBar pct={health.memory.percent}
+                  color={health.memory.percent > 80 ? '#ff5630' : '#0065ff'} />
+              </div>
+              {/* Disk */}
+              <div>
+                <div className="flex justify-between text-xs mb-1.5">
+                  <span style={{ color: '#8c9bab' }}>Disk</span>
+                  <span className="font-semibold text-white">
+                    {health.disk.used} / {health.disk.total}
+                    <span className="ml-1.5 font-normal" style={{ color: health.disk.percent > 80 ? '#ff8f73' : '#626f86' }}>
+                      ({health.disk.percent}%)
+                    </span>
+                  </span>
+                </div>
+                <ProgressBar pct={health.disk.percent}
+                  color={health.disk.percent > 80 ? '#ff5630' : '#36b37e'} />
+              </div>
+              {/* Jobs + Learning + Gateway */}
+              <div className="flex gap-3 pt-1">
+                <div className="flex-1 rounded-xl p-3 text-center" style={{ background: '#1d2125' }}>
+                  <p className="text-lg font-bold text-white">{health.jobs.total}</p>
+                  <p className="text-[11px]" style={{ color: '#626f86' }}>Jobs</p>
+                  {health.jobs.errors > 0 && (
+                    <p className="text-[11px] mt-0.5" style={{ color: '#ff8f73' }}>{health.jobs.errors} error{health.jobs.errors !== 1 ? 's' : ''}</p>
+                  )}
+                </div>
+                <div className="flex-1 rounded-xl p-3 text-center" style={{ background: '#1d2125' }}>
+                  <p className="text-sm font-bold text-white">{relTime(health.lastLearning)}</p>
+                  <p className="text-[11px]" style={{ color: '#626f86' }}>Last cycle</p>
+                </div>
+                <div className="flex-1 rounded-xl p-3 text-center" style={{ background: '#1d2125' }}>
+                  {health.gateway.status === 'running'
+                    ? <CheckCircle2 size={18} className="mx-auto" style={{ color: '#36b37e' }} />
+                    : <Circle size={18} className="mx-auto" style={{ color: '#ff5630' }} />
+                  }
+                  <p className="text-[11px] mt-1 capitalize" style={{ color: '#626f86' }}>Gateway</p>
+                </div>
+              </div>
+
+              {/* OpenClaw version */}
+              {health.openclaw && (
+                <div className="rounded-xl p-3 flex items-center justify-between gap-3"
+                  style={{
+                    background: '#1d2125',
+                    border: `1px solid ${health.openclaw.upToDate ? '#2c333a' : '#ff8b0033'}`,
+                  }}>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg">⚡</span>
+                    <div>
+                      <p className="text-xs font-semibold text-white">OpenClaw</p>
+                      <p className="text-[11px] font-mono" style={{ color: '#579dff' }}>v{health.openclaw.current}</p>
+                    </div>
+                  </div>
+                  {health.openclaw.upToDate ? (
+                    <span className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                      style={{ background: '#36b37e22', color: '#57d9a3' }}>
+                      <CheckCircle2 size={10} /> Up to date
+                    </span>
+                  ) : (
+                    <div className="text-right">
+                      <span className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                        style={{ background: '#ff8b0022', color: '#ff8b00' }}>
+                        ↑ Update available
+                      </span>
+                      <p className="text-[10px] mt-1 font-mono" style={{ color: '#626f86' }}>
+                        latest: v{health.openclaw.latest}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm" style={{ color: '#626f86' }}>Health data unavailable</p>
+          )}
+        </div>
 
       </div>
     </div>

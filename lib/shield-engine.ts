@@ -1,0 +1,1 @@
+/root/projects/shield-engine-core/src/index.ts

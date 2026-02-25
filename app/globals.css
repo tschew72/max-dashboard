@@ -176,3 +176,17 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Archive view */
+.archive-card {
+  opacity: 0.75;
+}
+.archive-card:hover {
+  opacity: 1;
+}
+
+/* Keyboard shortcut hints */
+kbd {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+}

@@ -7,20 +7,29 @@ datasource db {
 }
 
 model Task {
-  id          String     @id @default(cuid())
-  title       String
-  description String?
-  status      TaskStatus @default(BACKLOG)
-  priority    Priority   @default(MEDIUM)
-  assignee    Assignee   @default(BOTH)
-  label       Label      @default(WORK)
-  dueDate     DateTime?
-  order       Int        @default(0)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  completedAt DateTime?
-  source      String?
-  sourceId    String?
+  id                String     @id @default(cuid())
+  title             String
+  description       String?
+  status            TaskStatus @default(BACKLOG)
+  priority          Priority   @default(MEDIUM)
+  assignee          Assignee   @default(BOTH)
+  label             Label      @default(WORK)
+  dueDate           DateTime?
+  order             Int        @default(0)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  completedAt       DateTime?
+  source            String?
+  sourceId          String?
+  deletedAt         DateTime?
+  parentId          String?
+  recurrence        Recurrence @default(NONE)
+  recurrenceNextDue DateTime?
+  parent            Task?      @relation("Subtasks", fields: [parentId], references: [id])
+  subtasks          Task[]     @relation("Subtasks")
+  comments          Comment[]
+  tags              TaskTag[]
+  activities        TaskActivity[]
 }
 
 enum TaskStatus {
@@ -50,4 +59,64 @@ enum Label {
   VAPT
   DEFENSEWATCH
   REMINDER
+}
+
+enum Recurrence {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author    String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TaskActivity {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor     String
+  action    String
+  meta      String?
+  createdAt DateTime @default(now())
+}
+
+model Tag {
+  id    String    @id @default(cuid())
+  name  String    @unique
+  color String    @default("#626f86")
+  tasks TaskTag[]
+}
+
+model TaskTag {
+  taskId String
+  tagId  String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+}
+
+model ShieldLog {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  source          String?
+  consumer        String   @default("unknown")
+  textPreview     String
+  score           Int
+  level           String
+  recommendation  String
+  findingsJson    String
+  processingNotes String[]
+  evasionDetected Boolean  @default(false)
+  charCount       Int
+  engineVersion   String
+  durationMs      Int?
 }

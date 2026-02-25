@@ -18,6 +18,24 @@ function readMentionState(): Record<string, any> {
   return {}
 }
 
+/** Reconcile: if a task is already DONE in the DB but its mention is still
+ *  'pending', mark mention-state.json as 'resolved' so it won't be
+ *  treated as pending on the next sync. */
+function reconcileMentionDone(mentionId: string, state: Record<string, any>): boolean {
+  if (!state.mentions_tracking?.[mentionId]) return false
+  state.mentions_tracking[mentionId].response_status = 'resolved'
+  state.mentions_tracking[mentionId].completed_at = new Date().toISOString()
+  for (const p of MENTION_STATE_PATHS) {
+    try {
+      if (fs.existsSync(p)) {
+        fs.writeFileSync(p, JSON.stringify(state, null, 2))
+        return true
+      }
+    } catch { /* skip */ }
+  }
+  return false
+}
+
 export async function POST() {
   try {
     const state = readMentionState()
@@ -26,6 +44,7 @@ export async function POST() {
     let created = 0
     let skipped = 0
     let markedDone = 0
+    let reconciled = 0
 
     for (const [id, mention] of Object.entries(mentions) as [string, any][]) {
       const existing = await prisma.task.findFirst({ where: { sourceId: id } })
@@ -56,6 +75,12 @@ export async function POST() {
       }
 
       if (existing) {
+        // Reconcile: if task is already DONE but mention still says 'pending',
+        // fix mention-state.json so it won't stay mismatched forever
+        if (existing.status === 'DONE') {
+          reconcileMentionDone(id, state)
+          reconciled++
+        }
         skipped++
         continue
       }
@@ -64,12 +89,10 @@ export async function POST() {
       const sender = mention.sender || 'Unknown'
       const chat = mention.chat_topic || 'Teams'
       const text = mention.text || ''
-      const truncated = text.length > 80 ? text.slice(0, 80) + '…' : text
-
       await prisma.task.create({
         data: {
           title: `Reply to ${sender} — ${chat}`,
-          description: truncated || undefined,
+          description: text || undefined,
           status: 'BACKLOG',
           priority: 'HIGH',
           assignee: 'VINCE',
@@ -82,7 +105,7 @@ export async function POST() {
       created++
     }
 
-    return NextResponse.json({ ok: true, created, skipped, markedDone })
+    return NextResponse.json({ ok: true, created, skipped, markedDone, reconciled })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

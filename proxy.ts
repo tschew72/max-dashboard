@@ -7,7 +7,15 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secr
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (pathname.startsWith('/login') || pathname.startsWith('/api/auth')) {
+  // Public routes — no auth required
+  // /api/shield is intentionally public: analysis is stateless, returns no user data,
+  // and needs to be callable by external MCP clients and agent pipelines.
+  if (
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/shield') ||
+    pathname.startsWith('/api/mcp')   // MCP server — handles its own auth via Bearer token
+  ) {
     return NextResponse.next()
   }
 

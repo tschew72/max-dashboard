@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  allowedDevOrigins: ['dash.vincechew.me'],
 };
 
 export default nextConfig;

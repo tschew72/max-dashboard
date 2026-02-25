@@ -1,4 +1,5 @@
 import BottomNav from '@/components/ui/BottomNav'
+import { CommandPalette } from '@/components/CommandPalette'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -7,6 +8,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
       </div>
       <BottomNav />
+      <CommandPalette />
     </div>
   )
 }

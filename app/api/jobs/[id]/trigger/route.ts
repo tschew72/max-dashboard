@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server'
-import { execSync } from 'child_process'
+import { spawn } from 'child_process'
+
+/** Fire openclaw cron run in the background — does NOT block the response */
+function triggerAsync(id: string) {
+  const child = spawn('openclaw', ['cron', 'run', id], {
+    detached: true,
+    stdio: 'ignore',
+  })
+  child.unref()
+}
 
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  try {
-    const output = execSync(`openclaw cron trigger ${id}`, {
-      timeout: 10000,
-      encoding: 'utf8',
-    })
-    return NextResponse.json({ ok: true, output })
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Trigger failed'
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 })
-  }
+  triggerAsync(id)
+  return NextResponse.json({ ok: true, jobId: id, message: 'Job triggered in background' })
 }
