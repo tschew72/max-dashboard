@@ -13,7 +13,7 @@
 //   }
 
 import { NextRequest, NextResponse } from 'next/server'
-import { analyzeText, type AnalysisResult } from '@/lib/shield-engine'
+import { analyzeText, type AnalysisResult, type ContextProfile, type InputMode } from '@/lib/shield-engine'
 import { logShieldScan } from '@/lib/shield-logger'
 
 // ─── MCP Protocol Types ───────────────────────────────────────────────────────
@@ -74,6 +74,14 @@ const PROMPT_SHIELD_TOOL = {
           'Optional: where this text came from (e.g. "web_fetch from example.com", ' +
           '"search result", "user input", "uploaded file"). Used for context in findings.',
       },
+      profile: {
+        type: 'string',
+        enum: ['general', 'vapt', 'strict'],
+        description:
+          'Optional context profile. "general" (default) = balanced thresholds. ' +
+          '"vapt" = raised thresholds for security/pen-test pipelines (reduces false positives on security terminology). ' +
+          '"strict" = lowered thresholds for high-risk public-facing pipelines.',
+      },
     },
     required: ['text'],
   },
@@ -116,7 +124,7 @@ function handleToolsCall(
     return err(id, RPC_INVALID_PARAMS, `Unknown tool: ${String(p.name)}`)
   }
 
-  const args = p.arguments as { text?: unknown; source?: unknown } | undefined
+  const args = p.arguments as { text?: unknown; source?: unknown; profile?: unknown; mode?: unknown } | undefined
 
   if (!args || typeof args.text !== 'string') {
     return err(id, RPC_INVALID_PARAMS, 'arguments.text must be a string')
@@ -124,11 +132,21 @@ function handleToolsCall(
 
   const text = args.text.slice(0, 50_000)
   const source = typeof args.source === 'string' ? args.source : undefined
+  const VALID_PROFILES: ContextProfile[] = ['general', 'vapt', 'strict']
+  const profile: ContextProfile =
+    typeof args.profile === 'string' && VALID_PROFILES.includes(args.profile as ContextProfile)
+      ? (args.profile as ContextProfile)
+      : 'general'
+  const VALID_MODES: InputMode[] = ['user_prompt', 'document', 'tool_output', 'llm_output', 'browser_agent', 'auto']
+  const inputMode: InputMode =
+    typeof args.mode === 'string' && VALID_MODES.includes(args.mode as InputMode)
+      ? (args.mode as InputMode)
+      : 'auto'
 
   let result: AnalysisResult
   const t0 = Date.now()
   try {
-    result = analyzeText(text)
+    result = analyzeText(text, profile, undefined, inputMode)
   } catch (e) {
     return err(id, -32000, 'Analysis failed', String(e))
   }
@@ -147,6 +165,7 @@ function handleToolsCall(
 
   const summary = [
     `Score: ${result.score}/100 | Risk: ${result.level.toUpperCase()} | Recommendation: ${result.recommendation.toUpperCase()}`,
+    `Profile: ${result.profile}${result.fastPath ? ' | ⚡ Fast-path (full scan skipped)' : ''}`,
     source ? `Source: ${source}` : null,
     result.processingNotes.length > 0 ? `Preprocessing: ${result.processingNotes.join('; ')}` : null,
     topFindings.length > 0 ? `Top findings:\n${topFindings.join('\n')}` : 'No threats detected.',

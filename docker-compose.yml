@@ -6,7 +6,7 @@ services:
     ports:
       - "127.0.0.1:3010:3010"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/max_dashboard
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5433/max_dashboard
       - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-evvolabs2026}
       - JWT_SECRET=${JWT_SECRET:-max-dashboard-jwt-secret-2026}
       - NODE_ENV=production

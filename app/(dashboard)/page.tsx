@@ -1,8 +1,14 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { LogOut, RefreshCw, Plus, LayoutDashboard, AlertTriangle, Clock, Zap, Server, CheckCircle2, Circle, ChevronRight, ThumbsUp, ThumbsDown, Timer, BrainCircuit } from 'lucide-react'
+import { LogOut, RefreshCw, Plus, LayoutDashboard, AlertTriangle, Clock, Zap, Server, CheckCircle2, Circle, ChevronRight, ThumbsUp, ThumbsDown, Timer, BrainCircuit, Bot } from 'lucide-react'
 import Link from 'next/link'
+import { useDashboardSSE } from '@/hooks/useDashboardSSE'
+import SecurityAlertsWidget from '@/components/dashboard/SecurityAlertsWidget'
+import GmailInboxPanel from '@/components/dashboard/GmailInboxPanel'
+import PromptDomePanel from '@/components/dashboard/PromptDomePanel'
+import InfraHealthPanel from '@/components/dashboard/InfraHealthPanel'
+import AgentActivityPanel from '@/components/dashboard/AgentActivityPanel'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Task {
@@ -34,12 +40,6 @@ interface Job {
   enabled: boolean
   source: string
   category: string
-}
-
-interface DashData {
-  tasks: Task[]
-  health: HealthData | null
-  nextJob: Job | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -107,7 +107,6 @@ function StatChip({
   )
 }
 
-// SVG donut ring
 function DonutRing({ data }: { data: { value: number; color: string; label: string }[] }) {
   const total = data.reduce((s, d) => s + d.value, 0)
   if (total === 0) {
@@ -191,45 +190,87 @@ function TaskRow({ task }: { task: Task }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function HomePage() {
-  const [data, setData] = useState<DashData>({ tasks: [], health: null, nextJob: null })
+  // Core task + health data (loaded independently)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [health, setHealth] = useState<HealthData | null>(null)
+  const [nextJob, setNextJob] = useState<Job | null>(null)
   const [reviewTasks, setReviewTasks] = useState<Task[]>([])
   const [approvingId, setApprovingId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [tasksLoading, setTasksLoading] = useState(true)
+  const [healthLoading, setHealthLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  // Empty on server — populated client-side only to avoid SSR hydration mismatch
   const [time, setTime] = useState('')
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
 
-  const fetchAll = useCallback(async () => {
+  // SSE refresh triggers — increment to trigger panel refetch
+  const [sseRefresh, setSSERefresh] = useState<Record<string, number>>({
+    gmail: 0, infra: 0, promptdome: 0, agents: 0, security: 0,
+  })
+
+  const { connected: sseConnected, subscribe } = useDashboardSSE()
+
+  // Subscribe to SSE events to trigger panel refetches
+  useEffect(() => {
+    const unsubs = [
+      subscribe('tasks', () => { fetchTasks(); fetchHealth() }),
+      subscribe('health', () => fetchHealth()),
+      subscribe('gmail', () => setSSERefresh(p => ({ ...p, gmail: p.gmail + 1 }))),
+      subscribe('infra', () => setSSERefresh(p => ({ ...p, infra: p.infra + 1 }))),
+      subscribe('promptdome', () => setSSERefresh(p => ({ ...p, promptdome: p.promptdome + 1 }))),
+      subscribe('agents', () => setSSERefresh(p => ({ ...p, agents: p.agents + 1 }))),
+      subscribe('security', () => setSSERefresh(p => ({ ...p, security: p.security + 1 }))),
+    ]
+    return () => unsubs.forEach(u => u())
+  }, [subscribe])
+
+  const fetchTasks = useCallback(async () => {
     try {
-      const [healthRes, tasksRes, jobsRes] = await Promise.all([
-        fetch('/api/system/health'),
+      const [tasksRes, jobsRes] = await Promise.all([
         fetch('/api/tasks'),
         fetch('/api/jobs'),
       ])
-      const health = healthRes.ok ? await healthRes.json() : null
       const tasksRaw = tasksRes.ok ? await tasksRes.json() : []
       const allTasks: Task[] = Array.isArray(tasksRaw) ? tasksRaw : []
+      setTasks(allTasks)
       setReviewTasks(allTasks.filter(t => t.status === 'REVIEW'))
 
-      // Find next scheduled job
-      let nextJob: Job | null = null
       if (jobsRes.ok) {
         const jobs: Job[] = await jobsRes.json()
         const enabled = jobs.filter(j => j.enabled && j.nextRun && j.source === 'openclaw')
         enabled.sort((a, b) => new Date(a.nextRun!).getTime() - new Date(b.nextRun!).getTime())
-        nextJob = enabled[0] ?? null
+        setNextJob(enabled[0] ?? null)
       }
-
-      setData({ tasks: allTasks, health, nextJob })
     } catch (e) {
-      console.error(e)
+      console.error('Tasks fetch error:', e)
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      setTasksLoading(false)
     }
   }, [])
+
+  const fetchHealth = useCallback(async () => {
+    try {
+      const res = await fetch('/api/system/health')
+      if (res.ok) setHealth(await res.json())
+    } catch (e) {
+      console.error('Health fetch error:', e)
+    } finally {
+      setHealthLoading(false)
+    }
+  }, [])
+
+  const refreshAll = useCallback(() => {
+    setRefreshing(true)
+    Promise.all([fetchTasks(), fetchHealth()]).finally(() => setRefreshing(false))
+    // Trigger all panel refetches
+    setSSERefresh(p => ({
+      gmail: p.gmail + 1,
+      infra: p.infra + 1,
+      promptdome: p.promptdome + 1,
+      agents: p.agents + 1,
+      security: p.security + 1,
+    }))
+  }, [fetchTasks, fetchHealth])
 
   const approveTask = useCallback(async (id: string, approve: boolean) => {
     setApprovingId(id)
@@ -248,11 +289,12 @@ export default function HomePage() {
   useEffect(() => {
     setMounted(true)
     setTime(sgtTime())
-    fetchAll()
-    const dataInterval = setInterval(fetchAll, 30000)
+    // Independent data fetches — no blocking
+    fetchTasks()
+    fetchHealth()
     const clockInterval = setInterval(() => setTime(sgtTime()), 10000)
-    return () => { clearInterval(dataInterval); clearInterval(clockInterval) }
-  }, [fetchAll])
+    return () => clearInterval(clockInterval)
+  }, [fetchTasks, fetchHealth])
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -260,8 +302,8 @@ export default function HomePage() {
     router.refresh()
   }
 
-  const { tasks, health } = data
   const now = new Date()
+  const loading = tasksLoading
 
   // ── Derived stats ────────────────────────────────────────────────────────
   const activeTasks  = tasks.filter(t => t.status !== 'DONE')
@@ -301,11 +343,16 @@ export default function HomePage() {
         style={{ background: '#1d2125', borderBottom: '1px solid #2c333a' }}>
         <div>
           <p className="text-xs font-medium" style={{ color: '#626f86' }}>{greetEmoji} {greet}</p>
-          <h1 className="text-xl font-bold text-white leading-tight">Vince</h1>
+          <h1 className="text-xl font-bold text-white leading-tight flex items-center gap-2">
+              Vince
+              {sseConnected && (
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#3fb950', boxShadow: '0 0 6px #3fb950' }} title="Live" />
+              )}
+            </h1>
           <p className="text-[11px] mt-0.5" style={{ color: '#626f86' }}>{time}</p>
         </div>
         <div className="flex items-center gap-1.5 pt-1">
-          <button onClick={() => { setRefreshing(true); fetchAll() }}
+          <button onClick={refreshAll}
             className="w-9 h-9 flex items-center justify-center rounded-xl"
             style={{ background: '#22272b', color: '#8c9bab' }}>
             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
@@ -344,6 +391,12 @@ export default function HomePage() {
             </>
           )}
         </div>
+
+        {/* ── Security Alerts (conditional — top when alerts exist) ── */}
+        <SecurityAlertsWidget onSSERefresh={sseRefresh.security} />
+
+        {/* ── Gmail Inbox ── */}
+        <GmailInboxPanel onSSERefresh={sseRefresh.gmail} />
 
         {/* ── Pending Approvals ── */}
         {!loading && reviewTasks.length > 0 && (
@@ -389,28 +442,14 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── Next Scheduled Job ── */}
-        {!loading && data.nextJob && (
-          <Link href="/jobs">
-            <div className="rounded-2xl px-4 py-3 flex items-center gap-3"
-              style={{ background: '#22272b', border: '1px solid #2c333a' }}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: '#0052cc22' }}>
-                <Timer size={18} style={{ color: '#579dff' }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#626f86' }}>Next job</p>
-                <p className="text-sm font-semibold text-white truncate mt-0.5">{data.nextJob.name}</p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <p className="text-sm font-bold" style={{ color: '#579dff' }}>
-                  {data.nextJob.nextRun ? relTime(data.nextJob.nextRun) : '—'}
-                </p>
-                <p className="text-[10px]" style={{ color: '#626f86' }}>{data.nextJob.scheduleDesc}</p>
-              </div>
-            </div>
-          </Link>
-        )}
+        {/* ── PromptDome Live Stats ── */}
+        <PromptDomePanel onSSERefresh={sseRefresh.promptdome} />
+
+        {/* ── Infrastructure Health ── */}
+        <InfraHealthPanel onSSERefresh={sseRefresh.infra} />
+
+        {/* ── Agent Activity Feed ── */}
+        <AgentActivityPanel onSSERefresh={sseRefresh.agents} />
 
         {/* ── Task Progress ring + breakdown ── */}
         <div className="rounded-2xl p-4" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
@@ -424,7 +463,6 @@ export default function HomePage() {
 
           {loading ? <Skeleton className="h-32" /> : (
             <div className="flex items-center gap-5">
-              {/* Ring */}
               <div className="relative flex-shrink-0">
                 <DonutRing data={donutData} />
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -432,7 +470,6 @@ export default function HomePage() {
                   <span className="text-[10px]" style={{ color: '#626f86' }}>done</span>
                 </div>
               </div>
-              {/* Legend */}
               <div className="flex-1 space-y-2.5">
                 {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
                   const count = statusCounts[key as keyof typeof statusCounts]
@@ -451,28 +488,6 @@ export default function HomePage() {
             </div>
           )}
         </div>
-
-        {/* ── Overdue tasks ── */}
-        {!loading && overdueTasks.length > 0 && (
-          <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #ff563033' }}>
-            <div className="px-4 pt-3 pb-2 flex items-center justify-between"
-              style={{ background: '#ff563008' }}>
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#ff8f73' }}>
-                ⚠ Overdue — {overdueTasks.length} task{overdueTasks.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <div className="px-1 pb-1">
-              {overdueTasks.slice(0, 4).map(t => <TaskRow key={t.id} task={t} />)}
-              {overdueTasks.length > 4 && (
-                <Link href="/tasks">
-                  <p className="text-center text-xs py-2" style={{ color: '#626f86' }}>
-                    +{overdueTasks.length - 4} more
-                  </p>
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* ── Upcoming (next 48h) ── */}
         <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
@@ -562,14 +577,13 @@ export default function HomePage() {
             )}
           </div>
 
-          {loading ? (
+          {healthLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-8" />
               <Skeleton className="h-8" />
             </div>
           ) : health ? (
             <div className="space-y-3">
-              {/* RAM */}
               <div>
                 <div className="flex justify-between text-xs mb-1.5">
                   <span style={{ color: '#8c9bab' }}>RAM</span>
@@ -583,7 +597,6 @@ export default function HomePage() {
                 <ProgressBar pct={health.memory.percent}
                   color={health.memory.percent > 80 ? '#ff5630' : '#0065ff'} />
               </div>
-              {/* Disk */}
               <div>
                 <div className="flex justify-between text-xs mb-1.5">
                   <span style={{ color: '#8c9bab' }}>Disk</span>
@@ -597,7 +610,6 @@ export default function HomePage() {
                 <ProgressBar pct={health.disk.percent}
                   color={health.disk.percent > 80 ? '#ff5630' : '#36b37e'} />
               </div>
-              {/* Jobs + Learning + Gateway */}
               <div className="flex gap-3 pt-1">
                 <div className="flex-1 rounded-xl p-3 text-center" style={{ background: '#1d2125' }}>
                   <p className="text-lg font-bold text-white">{health.jobs.total}</p>
@@ -619,7 +631,6 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* OpenClaw version */}
               {health.openclaw && (
                 <div className="rounded-xl p-3 flex items-center justify-between gap-3"
                   style={{
