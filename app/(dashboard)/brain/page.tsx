@@ -358,7 +358,7 @@ function KnowledgeTab() {
               <FileText size={18} style={{ color: 'var(--muted)' }} />
               <div className="flex-1 min-w-0">
                 <div className="text-sm truncate" style={{ color: 'var(--text)' }}>{file.name}</div>
-                <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{fmtSize(file.size)}</div>
+                <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{fmtSize(file.size)} · {fmtDate(file.modified)}</div>
               </div>
               {loadingFile === file.path ? (
                 <Loader2 size={16} className="animate-spin shrink-0" style={{ color: 'var(--muted)' }} />

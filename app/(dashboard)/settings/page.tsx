@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LogOut, User, Palette, Clock, Info, Monitor } from 'lucide-react'
+import { LogOut, User, Palette, Clock, Info, Monitor, Sun, Moon } from 'lucide-react'
 
 interface JWTPayload {
   sub?: string
@@ -82,6 +82,7 @@ export default function SettingsPage() {
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null)
   const [compact, setCompact] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
   useEffect(() => {
     const token = getCookieToken()
@@ -89,6 +90,12 @@ export default function SettingsPage() {
 
     // Load compact mode from localStorage
     setCompact(localStorage.getItem('compact-mode') === 'true')
+
+    // Load theme
+    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' | null
+    const currentTheme = savedTheme ?? 'dark'
+    setTheme(currentTheme)
+    document.documentElement.classList.toggle('light', currentTheme === 'light')
 
     // Fetch server info
     fetch('/api/settings/info').then(r => r.json()).then(setServerInfo).catch(() => {})
@@ -106,6 +113,12 @@ export default function SettingsPage() {
     setCompact(val)
     localStorage.setItem('compact-mode', String(val))
     document.documentElement.classList.toggle('compact', val)
+  }
+
+  const toggleTheme = (newTheme: 'dark' | 'light') => {
+    setTheme(newTheme)
+    localStorage.setItem('theme', newTheme)
+    document.documentElement.classList.toggle('light', newTheme === 'light')
   }
 
   // Derive Discord user info from JWT
@@ -167,9 +180,27 @@ export default function SettingsPage() {
               </button>
             }
           />
-          <div className="pt-2 text-xs" style={{ color: 'var(--muted)' }}>
-            More appearance settings coming soon.
-          </div>
+          <Row
+            label="Theme"
+            value={
+              <span className="flex items-center gap-1.5 text-sm">
+                {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
+                {theme === 'dark' ? 'Dark' : 'Light'}
+              </span>
+            }
+            action={
+              <button
+                onClick={() => toggleTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="w-12 h-6 rounded-full transition-colors relative"
+                style={{ background: theme === 'light' ? '#f59e0b' : 'var(--border)' }}
+              >
+                <span
+                  className="absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow"
+                  style={{ left: theme === 'light' ? '26px' : '2px' }}
+                />
+              </button>
+            }
+          />
         </Section>
 
         {/* C: Session */}

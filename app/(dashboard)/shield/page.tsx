@@ -382,6 +382,101 @@ function ScanPanel() {
   )
 }
 
+
+// ─── Real-time Scan Feed Panel (WI-059) ──────────────────────────────────────
+
+interface RecentScan {
+  id: string
+  createdAt: string
+  textPreview: string
+  score: number
+  level: string
+  recommendation: string
+  charCount: number
+  durationMs: number | null
+  consumer: string
+}
+
+function ScanFeedPanel() {
+  const [scans, setScans] = useState<RecentScan[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadScans = useCallback(async () => {
+    try {
+      const r = await fetch('/api/shield/recent')
+      if (r.ok) {
+        const data = await r.json()
+        setScans(data.scans || [])
+      }
+    } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    loadScans()
+    const interval = setInterval(loadScans, 15000) // refresh every 15s
+    return () => clearInterval(interval)
+  }, [loadScans])
+
+  const verdictBadge = (rec: string) => {
+    const color = rec === 'block' ? '#ef4444' : rec === 'warn' ? '#f59e0b' : '#22c55e'
+    const label = rec === 'block' ? 'BLOCK' : rec === 'warn' ? 'WARN' : 'ALLOW'
+    return (
+      <span style={{
+        fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+        background: `${color}22`, color, textTransform: 'uppercase' as const,
+      }}>{label}</span>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Activity size={14} style={{ color: '#22c55e' }} /> Live Scan Feed
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 20, color: 'var(--muted)' }}>
+          <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Activity size={14} style={{ color: '#22c55e' }} />
+        Live Scan Feed
+        <span style={{ fontSize: 10, color: '#22c55e', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+          auto-refresh
+        </span>
+      </div>
+      {scans.length === 0 ? (
+        <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '16px 0' }}>
+          No recent scans
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {scans.map(s => (
+            <div key={s.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+              background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)',
+            }}>
+              <span style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap', minWidth: 48, flexShrink: 0 }}>
+                {fmtDate(s.createdAt)}
+              </span>
+              <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text)' }}>
+                {s.textPreview.slice(0, 80)}{s.textPreview.length > 80 ? '…' : ''}
+              </div>
+              {verdictBadge(s.recommendation)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ShieldPage() {
@@ -468,6 +563,9 @@ export default function ShieldPage() {
               <StatCard icon={<Zap size={14} />} label="Evasion" value={stats.evasionCount} sub="attempts detected" color="#8b5cf6" />
               <StatCard icon={<Clock size={14} />} label="Latency p95" value={`${stats.latency.p95}ms`} sub={`p50: ${stats.latency.p50}ms · avg: ${stats.latency.avg}ms`} />
             </div>
+
+            {/* Live Scan Feed */}
+            <ScanFeedPanel />
 
             {/* Charts row */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

@@ -53,6 +53,34 @@ async function getPm2Processes(): Promise<object[]> {
   }
 }
 
+
+async function getSwapUsage(): Promise<{ used: string; total: string; pct: number }> {
+  try {
+    const { stdout } = await execAsync("free -m | grep Swap")
+    const parts = stdout.trim().split(/\s+/)
+    const total = parseInt(parts[1] ?? '0', 10)
+    const used = parseInt(parts[2] ?? '0', 10)
+    const pct = total > 0 ? Math.round((used / total) * 100) : 0
+    const fmtMb = (mb: number) => mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`
+    return { used: fmtMb(used), total: fmtMb(total), pct }
+  } catch {
+    return { used: '0 MB', total: '0 MB', pct: 0 }
+  }
+}
+
+async function getNetworkIO(): Promise<{ rxBytes: number; txBytes: number; interface: string }> {
+  try {
+    const { stdout } = await execAsync("cat /proc/net/dev | grep -E '(eth0|ens|enp)' | head -1")
+    const parts = stdout.trim().split(/\s+/)
+    const iface = (parts[0] ?? 'eth0').replace(':', '')
+    const rxBytes = parseInt(parts[1] ?? '0', 10)
+    const txBytes = parseInt(parts[9] ?? '0', 10)
+    return { rxBytes, txBytes, interface: iface }
+  } catch {
+    return { rxBytes: 0, txBytes: 0, interface: 'unknown' }
+  }
+}
+
 export async function GET() {
   const cpus = os.cpus()
   const loadavg = os.loadavg()
@@ -67,7 +95,7 @@ export async function GET() {
   const ramUsedGb = (usedMem / 1024 / 1024 / 1024).toFixed(1)
   const ramTotalGb = (totalMem / 1024 / 1024 / 1024).toFixed(1)
 
-  const [disk, pm2] = await Promise.all([getDiskUsage(), getPm2Processes()])
+  const [disk, pm2, swap, network] = await Promise.all([getDiskUsage(), getPm2Processes(), getSwapUsage(), getNetworkIO()])
 
   const days = Math.floor(uptime / 86400)
   const hours = Math.floor((uptime % 86400) / 3600)
@@ -91,5 +119,7 @@ export async function GET() {
     uptime: { seconds: uptime, str: uptimeStr },
     hostname,
     pm2,
+    swap,
+    network,
   })
 }

@@ -11,6 +11,24 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+
+/* ─── Light Mode ─────────────────────────────────────────────────── */
+:root.light {
+  --bg: #f8f9fa;
+  --card: #ffffff;
+  --border: #e0e0e0;
+  --accent: #7c3aed;
+  --accent-light: #6d28d9;
+  --text: #1a1a2e;
+  --muted: #6b7280;
+}
+:root.light body {
+  background: var(--bg);
+  color: var(--text);
+}
+:root.light ::-webkit-scrollbar-track { background: #f0f0f0; }
+:root.light ::-webkit-scrollbar-thumb { background: #c0c0c0; }
+
 * { box-sizing: border-box; }
 body {
   background: var(--bg);

@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { AlertCircle, Clock, BookOpen, Zap, Radio } from 'lucide-react'
+import { AlertCircle, Clock, BookOpen, Zap, Radio, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface ActivityEvent {
   id: string
@@ -19,6 +19,7 @@ const TYPE_CONFIG = {
 }
 
 type Filter = 'all' | 'error' | 'cron' | 'learning'
+const PAGE_SIZE = 20
 
 function ActivityItem({ event }: { event: ActivityEvent }) {
   const cfg = TYPE_CONFIG[event.type] || TYPE_CONFIG.info
@@ -58,11 +59,20 @@ function Skeleton() {
   )
 }
 
+function SkeletonList() {
+  return (
+    <>
+      {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <Skeleton key={i} />)}
+    </>
+  )
+}
+
 export default function ActivityPage() {
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [filter, setFilter] = useState<Filter>('all')
   const [loading, setLoading] = useState(true)
   const [connected, setConnected] = useState(false)
+  const [page, setPage] = useState(1)
   const esRef = useRef<EventSource | null>(null)
 
   useEffect(() => {
@@ -99,7 +109,42 @@ export default function ActivityPage() {
     }
   }, [])
 
-  const filtered = filter === 'all' ? events : events.filter(e => e.type === filter)
+  const filtered = useMemo(
+    () => filter === 'all' ? events : events.filter(e => e.type === filter),
+    [events, filter]
+  )
+
+  // Reset to page 1 when filter changes
+  useEffect(() => { setPage(1) }, [filter])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginatedEvents = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  // Export functionality
+  const exportData = (format: 'json' | 'csv') => {
+    const data = filtered
+    let blob: Blob
+    let filename: string
+
+    if (format === 'json') {
+      blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      filename = `activity-${filter}-${new Date().toISOString().slice(0, 10)}.json`
+    } else {
+      const headers = 'id,type,description,timestamp\n'
+      const rows = data.map(e =>
+        `"${e.id}","${e.type}","${e.description.replace(/"/g, '""')}","${e.timestamp}"`
+      ).join('\n')
+      blob = new Blob([headers + rows], { type: 'text/csv' })
+      filename = `activity-${filter}-${new Date().toISOString().slice(0, 10)}.csv`
+    }
+
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const FILTERS: { id: Filter; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -114,11 +159,32 @@ export default function ActivityPage() {
       <div className="sticky top-0 z-40" style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center justify-between px-4 py-3">
           <h1 className="text-lg font-bold text-white">📡 Activity</h1>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ background: connected ? '#10b981' : 'var(--muted)' }} />
-            <span className="text-xs" style={{ color: connected ? '#10b981' : 'var(--muted)' }}>
-              {connected ? 'Live' : 'Offline'}
-            </span>
+          <div className="flex items-center gap-3">
+            {/* Export dropdown */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => exportData('json')}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold"
+                style={{ background: 'var(--card)', color: 'var(--muted)', border: '1px solid var(--border)' }}
+                title="Export as JSON"
+              >
+                <Download size={11} /> JSON
+              </button>
+              <button
+                onClick={() => exportData('csv')}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold"
+                style={{ background: 'var(--card)', color: 'var(--muted)', border: '1px solid var(--border)' }}
+                title="Export as CSV"
+              >
+                <Download size={11} /> CSV
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full" style={{ background: connected ? '#10b981' : 'var(--muted)' }} />
+              <span className="text-xs" style={{ color: connected ? '#10b981' : 'var(--muted)' }}>
+                {connected ? 'Live' : 'Offline'}
+              </span>
+            </div>
           </div>
         </div>
         {/* Filter chips */}
@@ -137,22 +203,51 @@ export default function ActivityPage() {
               {f.label}
             </button>
           ))}
+          <span className="flex-shrink-0 text-[11px] self-center ml-auto" style={{ color: 'var(--muted)' }}>
+            {filtered.length} events
+          </span>
         </div>
       </div>
 
       {/* Events list */}
       <div className="flex-1">
         {loading ? (
-          [1, 2, 3, 4, 5].map(i => <Skeleton key={i} />)
+          <SkeletonList />
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16" style={{ color: 'var(--muted)' }}>
             <Radio size={32} className="mb-3" />
             <p className="text-sm">No activity yet</p>
           </div>
         ) : (
-          filtered.map(event => <ActivityItem key={event.id} event={event} />)
+          paginatedEvents.map(event => <ActivityItem key={event.id} event={event} />)
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="sticky bottom-0 flex items-center justify-center gap-3 px-4 py-3"
+          style={{ background: 'var(--bg)', borderTop: '1px solid var(--border)' }}>
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+            style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+          >
+            <ChevronLeft size={14} /> Prev
+          </button>
+          <span className="text-xs" style={{ color: 'var(--muted)' }}>
+            {page} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+            style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+          >
+            Next <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

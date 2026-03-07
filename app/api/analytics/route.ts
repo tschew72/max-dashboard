@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   // ── Task stats ────────────────────────────────────────────────────────────
   const allTasks = await prisma.task.findMany({
     where: { deletedAt: null },
-    select: { id: true, status: true, createdAt: true, dueDate: true },
+    select: { id: true, status: true, createdAt: true, dueDate: true, label: true, completedAt: true },
   })
 
   const recentTasks = allTasks.filter(t => t.createdAt >= since)
@@ -35,6 +35,17 @@ export async function GET(req: Request) {
   const overdue = allTasks.filter(t =>
     t.dueDate && t.dueDate < new Date() && t.status !== 'DONE'
   ).length
+
+  // Tasks by label
+  const tasksByLabel: Record<string, number> = {}
+  for (const t of allTasks) {
+    const label = (t as { label?: string }).label || 'UNLABELED'
+    tasksByLabel[label] = (tasksByLabel[label] ?? 0) + 1
+  }
+
+  // Completion velocity: done tasks in period / days
+  const doneTasks = allTasks.filter(t => t.status === 'DONE' && t.createdAt >= since)
+  const completionVelocity = days > 0 ? doneTasks.length / days : 0
 
   // Tasks created per day (last N days)
   const tasksByDay: Record<string, number> = {}
@@ -170,6 +181,8 @@ export async function GET(req: Request) {
       inProgress: tasksByStatus['IN_PROGRESS'] ?? 0,
       done: tasksByStatus['DONE'] ?? 0,
       byDay: tasksByDay,
+      byLabel: tasksByLabel,
+      completionVelocity,
     },
     agents: {
       totalRuns,

@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, X, ExternalLink, Clock, MapPin } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, ExternalLink, Clock, MapPin, AlertTriangle } from 'lucide-react'
 
 interface CalEvent {
   id: string
@@ -26,6 +26,10 @@ const CAT_COLORS: Record<string, { bg: string; text: string; border: string }> =
   personal: { bg: '#16a34a22', text: '#86efac', border: '#22c55e' },
   task:     { bg: '#37415122', text: '#9ca3af', border: '#6b7280' },
 }
+
+// ── Exam Countdown Constants ────────────────────────────────────────────────
+const EXAM_DATE = new Date('2026-03-09T21:30:00+08:00')
+const EXAM_TITLE = 'PECB ISO/IEC 27001 Lead Auditor Exam'
 
 function getWeekDays(weekStart: Date): Date[] {
   return Array.from({ length: 7 }, (_, i) => {
@@ -56,6 +60,88 @@ function fmtTime(iso: string): string {
 
 function fmtDate(date: Date): string {
   return date.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', weekday: 'short', timeZone: 'Asia/Singapore' })
+}
+
+// ── Exam Countdown Banner ───────────────────────────────────────────────────
+function ExamCountdownBanner() {
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const diff = EXAM_DATE.getTime() - now.getTime()
+  if (diff <= 0) return null // exam has passed
+
+  const totalMins = Math.floor(diff / 60000)
+  const days = Math.floor(totalMins / 1440)
+  const hours = Math.floor((totalMins % 1440) / 60)
+  const mins = totalMins % 60
+  const secs = Math.floor((diff % 60000) / 1000)
+
+  const isUrgent = diff < 24 * 60 * 60 * 1000 // < 24h
+  const isVerySoon = diff < 2 * 60 * 60 * 1000 // < 2h
+
+  const bgColor = isVerySoon ? '#dc2626' : isUrgent ? '#b91c1c' : '#7c3aed'
+  const bgGrad = isVerySoon
+    ? 'linear-gradient(135deg, #dc2626, #991b1b)'
+    : isUrgent
+      ? 'linear-gradient(135deg, #b91c1c, #7f1d1d)'
+      : 'linear-gradient(135deg, #7c3aed, #4c1d95)'
+
+  return (
+    <div style={{ background: bgGrad, borderRadius: 16, padding: '16px 20px', margin: '12px 12px 0' }}>
+      <div className="flex items-center gap-2 mb-2">
+        <AlertTriangle size={16} color="#fff" className={isUrgent ? 'animate-pulse' : ''} />
+        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.8)' }}>
+          {isVerySoon ? '🚨 STARTING SOON' : isUrgent ? '⚠️ EXAM TOMORROW' : '📝 UPCOMING EXAM'}
+        </span>
+      </div>
+
+      <div className="text-sm font-bold text-white mb-1">{EXAM_TITLE}</div>
+      <div className="text-xs text-white/70 mb-3">Mon 9 Mar · 9:30 PM SGT</div>
+
+      {/* Countdown boxes */}
+      <div className="flex gap-2 mb-3">
+        {days > 0 && (
+          <div className="flex-1 rounded-xl py-2 text-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+            <div className="text-2xl font-black text-white">{days}</div>
+            <div className="text-[10px] font-semibold text-white/60 uppercase">Days</div>
+          </div>
+        )}
+        <div className="flex-1 rounded-xl py-2 text-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+          <div className="text-2xl font-black text-white">{String(hours).padStart(2, '0')}</div>
+          <div className="text-[10px] font-semibold text-white/60 uppercase">Hours</div>
+        </div>
+        <div className="flex-1 rounded-xl py-2 text-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+          <div className="text-2xl font-black text-white">{String(mins).padStart(2, '0')}</div>
+          <div className="text-[10px] font-semibold text-white/60 uppercase">Mins</div>
+        </div>
+        <div className="flex-1 rounded-xl py-2 text-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+          <div className="text-2xl font-black text-white">{String(secs).padStart(2, '0')}</div>
+          <div className="text-[10px] font-semibold text-white/60 uppercase">Secs</div>
+        </div>
+      </div>
+
+      {/* Exam prep reminders */}
+      <div className="rounded-xl p-3 space-y-1.5" style={{ background: 'rgba(0,0,0,0.2)' }}>
+        <div className="text-[11px] font-bold text-white/90 uppercase tracking-wide">📋 Exam Prep Checklist</div>
+        <div className="text-[11px] text-white/70 flex items-center gap-1.5">
+          <span>⏰</span> Launch PECB Exam app <strong className="text-white">30 min early</strong> (9:00 PM)
+        </div>
+        <div className="text-[11px] text-white/70 flex items-center gap-1.5">
+          <span>🪪</span> Have your <strong className="text-white">government-issued ID</strong> ready
+        </div>
+        <div className="text-[11px] text-white/70 flex items-center gap-1.5">
+          <span>🔇</span> Quiet room, stable internet, webcam on
+        </div>
+        <div className="text-[11px] text-white/70 flex items-center gap-1.5">
+          <span>📵</span> Close all other apps and notifications
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function EventChip({ event, onClick }: { event: CalEvent; onClick: () => void }) {
@@ -250,8 +336,14 @@ export default function CalendarPage() {
     ? `${fmtDate(visibleDays[0])} – ${fmtDate(visibleDays[2])}`
     : `${weekStart.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })}`
 
+  // Check if exam day is visible
+  const isExamDayVisible = visibleDays.some(d => isSameDay(d, EXAM_DATE))
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
+      {/* Exam Countdown Banner */}
+      <ExamCountdownBanner />
+
       {/* Header */}
       <div className="sticky top-0 z-40 px-4 py-3 flex-shrink-0"
         style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
@@ -290,22 +382,35 @@ export default function CalendarPage() {
             style={{ gridTemplateColumns: `repeat(${visibleDays.length}, minmax(0, 1fr))` }}>
             {visibleDays.map((day) => {
               const isToday = isSameDay(day, today)
+              const isExamDay = isSameDay(day, EXAM_DATE)
               const items = getDayItems(day)
               return (
                 <div key={day.toISOString()} className="rounded-xl overflow-hidden"
-                  style={{ background: 'var(--card)', border: `1px solid ${isToday ? 'var(--accent)' : 'var(--border)'}` }}>
+                  style={{
+                    background: 'var(--card)',
+                    border: `1px solid ${isExamDay ? '#ef4444' : isToday ? 'var(--accent)' : 'var(--border)'}`,
+                    boxShadow: isExamDay ? '0 0 12px rgba(239,68,68,0.3)' : undefined,
+                  }}>
                   {/* Day header */}
                   <div className="py-2 px-2 text-center sticky top-0"
-                    style={{ background: isToday ? 'var(--accent)' : 'var(--card)', borderBottom: '1px solid var(--border)' }}>
+                    style={{
+                      background: isExamDay ? '#dc2626' : isToday ? 'var(--accent)' : 'var(--card)',
+                      borderBottom: '1px solid var(--border)',
+                    }}>
                     <div className="text-[10px] font-semibold uppercase"
-                      style={{ color: isToday ? '#fff' : 'var(--muted)' }}>
+                      style={{ color: (isToday || isExamDay) ? '#fff' : 'var(--muted)' }}>
                       {day.toLocaleDateString('en-SG', { weekday: 'short' })}
                     </div>
                     <div className="text-lg font-bold"
-                      style={{ color: isToday ? '#fff' : 'var(--text)' }}>
+                      style={{ color: (isToday || isExamDay) ? '#fff' : 'var(--text)' }}>
                       {day.getDate()}
                     </div>
-                    {items.length > 0 && (
+                    {isExamDay && (
+                      <div className="text-[9px] mt-0.5 font-bold" style={{ color: 'rgba(255,255,255,0.9)' }}>
+                        📝 EXAM
+                      </div>
+                    )}
+                    {!isExamDay && items.length > 0 && (
                       <div className="text-[9px] mt-0.5" style={{ color: isToday ? 'rgba(255,255,255,0.7)' : 'var(--muted)' }}>
                         {items.length} event{items.length !== 1 ? 's' : ''}
                       </div>

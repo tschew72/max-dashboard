@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { RefreshCw, Cpu, HardDrive, MemoryStick, Clock, Play, Square, RotateCcw } from 'lucide-react'
+import { RefreshCw, Cpu, HardDrive, MemoryStick, Clock, Play, Square, RotateCcw, ArrowDownUp, Layers } from 'lucide-react'
 
 interface SystemData {
   cpu: { load1: number; load5: number; load15: number; count: number; pct: number }
@@ -9,6 +9,8 @@ interface SystemData {
   uptime: { seconds: number; str: string }
   hostname: string
   pm2: Pm2Process[]
+  swap: { used: string; total: string; pct: number }
+  network: { rxBytes: number; txBytes: number; interface: string }
 }
 
 interface Pm2Process {
@@ -79,6 +81,13 @@ function uptimeStr(ms: number): string {
   const h = Math.floor(m / 60)
   if (h < 24) return `${h}h ${m % 60}m`
   return `${Math.floor(h / 24)}d ${h % 24}h`
+}
+
+function fmtBytes(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
 }
 
 export default function SystemPage() {
@@ -171,6 +180,21 @@ export default function SystemPage() {
                 value={data.uptime.str}
                 sub={data.hostname}
                 color="#10b981"
+              />
+              <StatCard
+                icon={<Layers size={16} />}
+                label="Swap Used"
+                value={data.swap.used}
+                sub={`of ${data.swap.total} total`}
+                pct={data.swap.pct}
+                color="#8b5cf6"
+              />
+              <StatCard
+                icon={<ArrowDownUp size={16} />}
+                label="Network I/O"
+                value={fmtBytes(data.network.rxBytes)}
+                sub={`TX: ${fmtBytes(data.network.txBytes)} · ${data.network.interface}`}
+                color="#06b6d4"
               />
             </>
           ) : null}

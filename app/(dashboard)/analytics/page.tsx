@@ -12,6 +12,8 @@ interface AnalyticsData {
     inProgress: number
     done: number
     byDay: Record<string, number>
+    byLabel: Record<string, number>
+    completionVelocity: number
   }
   agents: {
     totalRuns: number
@@ -176,6 +178,53 @@ export default function AnalyticsPage() {
                     <span>Today</span>
                   </div>
                 </div>
+
+                {/* Top Tasks by Label (WI-069) */}
+                {data.tasks.byLabel && Object.keys(data.tasks.byLabel).length > 0 && (
+                  <div>
+                    <div className="text-[11px] mb-3" style={{ color: 'var(--muted)' }}>Top Tasks by Label</div>
+                    <div className="space-y-2">
+                      {Object.entries(data.tasks.byLabel)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([label, count]) => {
+                          const maxCount = Math.max(...Object.values(data.tasks.byLabel), 1)
+                          const pct = Math.round((count / maxCount) * 100)
+                          const labelColors: Record<string, string> = {
+                            WORK: '#0052cc', PERSONAL: '#6554c0', CONSULTING: '#ff8b00',
+                            VAPT: '#bf2600', DEFENSEWATCH: '#00875a', REMINDER: '#0065ff',
+                          }
+                          const barColor = labelColors[label] ?? '#7c3aed'
+                          return (
+                            <div key={label}>
+                              <div className="flex justify-between text-[11px] mb-1">
+                                <span style={{ color: 'var(--text)' }}>{label}</span>
+                                <span className="font-semibold" style={{ color: barColor }}>{count}</span>
+                              </div>
+                              <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+                                <div className="h-full rounded-full transition-all duration-300"
+                                  style={{ width: pct + '%', background: barColor }} />
+                              </div>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Completion Velocity (WI-069) */}
+                {data.tasks.completionVelocity !== undefined && (
+                  <div className="rounded-xl p-3 flex items-center gap-3" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                    <div className="text-2xl">🚀</div>
+                    <div>
+                      <div className="text-sm font-bold" style={{ color: 'var(--text)' }}>
+                        {data.tasks.completionVelocity.toFixed(1)} tasks/day
+                      </div>
+                      <div className="text-[11px]" style={{ color: 'var(--muted)' }}>
+                        Completion velocity ({range})
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
 

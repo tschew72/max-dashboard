@@ -9,6 +9,7 @@ import GmailInboxPanel from '@/components/dashboard/GmailInboxPanel'
 import PromptDomePanel from '@/components/dashboard/PromptDomePanel'
 import InfraHealthPanel from '@/components/dashboard/InfraHealthPanel'
 import AgentActivityPanel from '@/components/dashboard/AgentActivityPanel'
+import ExamAlertBanner from '@/components/dashboard/ExamAlertBanner'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Task {
@@ -391,6 +392,9 @@ export default function HomePage() {
             </>
           )}
         </div>
+
+        {/* ── Exam Alert Banner (WI-074) ── */}
+        <ExamAlertBanner />
 
         {/* ── Security Alerts (conditional — top when alerts exist) ── */}
         <SecurityAlertsWidget onSSERefresh={sseRefresh.security} />
