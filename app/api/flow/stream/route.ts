@@ -35,42 +35,67 @@ export async function GET() {
         } catch { /* client disconnected */ }
       }
 
-      // Send initial snapshot of all agent statuses
+      // Send initial snapshot — all configured agents (including those without dirs yet)
+      const ALL_AGENTS = ['main','ba','dev','qa','ux','devops','cfo','ciso','writer','ops','marketing','researcher','sales','webdev']
       try {
-        const agentDirs = fs.readdirSync(AGENTS_DIR)
         const initialStatuses: Record<string, string> = {}
-        for (const agentId of agentDirs) {
-          initialStatuses[agentId] = getStatus(agentId)
-        }
+        for (const agentId of ALL_AGENTS) initialStatuses[agentId] = getStatus(agentId)
         send({ type: 'connected', ts: Date.now(), statuses: initialStatuses })
       } catch {
         send({ type: 'connected', ts: Date.now() })
       }
 
-      // Watch each agent's sessions directory
+      // Track which agent dirs we're already watching
+      const watchedAgents = new Set<string>()
+
+      function watchAgent(agentId: string) {
+        if (watchedAgents.has(agentId)) return
+        const sessionsDir = path.join(AGENTS_DIR, agentId, 'sessions')
+        if (!fs.existsSync(sessionsDir)) return
+        try {
+          const watcher = fs.watch(sessionsDir, { persistent: false }, (_event, filename) => {
+            if (!filename?.endsWith('.jsonl')) return
+            const existing = debounceMap.get(agentId)
+            if (existing) clearTimeout(existing)
+            debounceMap.set(agentId, setTimeout(() => {
+              const status = getStatus(agentId)
+              send({ type: 'agent-status', agentId, status, ts: Date.now() })
+              debounceMap.delete(agentId)
+            }, DEBOUNCE_MS))
+          })
+          watchers.push(watcher)
+          watchedAgents.add(agentId)
+        } catch { /* not watchable */ }
+      }
+
+      // Watch known agent dirs on startup
       try {
-        const agentDirs = fs.readdirSync(AGENTS_DIR)
-        for (const agentId of agentDirs) {
-          const sessionsDir = path.join(AGENTS_DIR, agentId, 'sessions')
-          if (!fs.existsSync(sessionsDir)) continue
+        for (const agentId of fs.readdirSync(AGENTS_DIR)) watchAgent(agentId)
+      } catch { /* ignore */ }
 
-          try {
-            const watcher = fs.watch(sessionsDir, { persistent: false }, (_event, filename) => {
-              if (!filename?.endsWith('.jsonl')) return
+      // Also watch the AGENTS_DIR itself for new agent directories being created
+      try {
+        const parentWatcher = fs.watch(AGENTS_DIR, { persistent: false }, (_event, name) => {
+          if (!name) return
+          // New agent dir appeared — set up watcher for it
+          setTimeout(() => watchAgent(name), 1000) // small delay for dir to be ready
+        })
+        watchers.push(parentWatcher)
+      } catch { /* ignore */ }
 
-              // Debounce — file writes fire multiple events
-              const existing = debounceMap.get(agentId)
-              if (existing) clearTimeout(existing)
-              debounceMap.set(agentId, setTimeout(() => {
-                const status = getStatus(agentId)
-                send({ type: 'agent-status', agentId, status, ts: Date.now() })
-                debounceMap.delete(agentId)
-              }, DEBOUNCE_MS))
-            })
-            watchers.push(watcher)
-          } catch { /* agent dir not watchable */ }
-        }
-      } catch { /* agents dir not readable */ }
+      // Periodic rescan every 8s for any new agent dirs (belt + suspenders)
+      const rescanInterval = setInterval(() => {
+        try {
+          for (const agentId of fs.readdirSync(AGENTS_DIR)) {
+            if (!watchedAgents.has(agentId)) {
+              watchAgent(agentId)
+              // Send immediate status for newly discovered agent
+              const status = getStatus(agentId)
+              if (status !== 'idle') send({ type: 'agent-status', agentId, status, ts: Date.now() })
+            }
+          }
+        } catch { /* ignore */ }
+      }, 8_000)
 
       // Heartbeat every 20s to keep connection alive
       const heartbeat = setInterval(() => {
@@ -80,6 +105,7 @@ export async function GET() {
       // Cleanup on cancel
       const cleanup = () => {
         clearInterval(heartbeat)
+        clearInterval(rescanInterval)
         watchers.forEach(w => { try { w.close() } catch { /* ignore */ } })
         debounceMap.forEach(t => clearTimeout(t))
       }
