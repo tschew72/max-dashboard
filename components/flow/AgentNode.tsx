@@ -130,58 +130,7 @@ function AgentNodeComponent({ data }: { data: Record<string, unknown> }) {
         </>
       )}
 
-      {/* Layer 2: Rotating rings (running/error) */}
-      {(isRunning || isError) && (
-        <svg
-          width="160"
-          height="120"
-          viewBox="0 0 160 120"
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            pointerEvents: 'none',
-            overflow: 'visible',
-          }}
-        >
-          <g transform="translate(80, 60)">
-            {/* Ring 1 */}
-            <ellipse
-              rx="78"
-              ry="55"
-              fill="none"
-              stroke={isError ? '#ef4444' : '#7c3aed'}
-              strokeWidth="1.5"
-              strokeDasharray="40 160"
-              strokeLinecap="round"
-              style={{ animation: 'agent-ring-1 2s linear infinite', transformOrigin: 'center' }}
-            />
-            {/* Ring 2 (reverse) */}
-            <ellipse
-              rx="72"
-              ry="50"
-              fill="none"
-              stroke={isError ? '#f87171' : '#a78bfa'}
-              strokeWidth="1"
-              strokeDasharray="20 180"
-              strokeLinecap="round"
-              style={{ animation: 'agent-ring-2 1.5s linear infinite', transformOrigin: 'center' }}
-            />
-            {/* Ring 3 */}
-            <ellipse
-              rx="66"
-              ry="45"
-              fill="none"
-              stroke={isError ? 'rgba(239,68,68,0.25)' : 'rgba(124,58,237,0.25)'}
-              strokeWidth="1"
-              strokeDasharray="10 190"
-              strokeLinecap="round"
-              style={{ animation: 'agent-ring-3 3s linear infinite', transformOrigin: 'center' }}
-            />
-          </g>
-        </svg>
-      )}
+
 
       {/* Done rings (green, static fade) */}
       {isDone && (

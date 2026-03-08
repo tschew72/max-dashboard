@@ -209,9 +209,6 @@ body {
   0% { transform: scale(1); opacity: 0.6; }
   100% { transform: scale(2.5); opacity: 0; }
 }
-@keyframes agent-ring-1 { to { transform: rotate(360deg); } }
-@keyframes agent-ring-2 { to { transform: rotate(-360deg); } }
-@keyframes agent-ring-3 { to { transform: rotate(360deg); } }
 @keyframes agent-done { 0%,70%{opacity:1} 100%{opacity:0} }
 @keyframes edge-particle {
   from { offset-distance: 0%; }

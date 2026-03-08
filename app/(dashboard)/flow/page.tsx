@@ -185,7 +185,7 @@ function FlowCanvas() {
     })
 
     const newEdges: FlowEdge[] = flowData.edges.map(edge => {
-      const isActive = runningAgents.has(edge.target)
+      const isActive = runningAgents.has(edge.source) && runningAgents.has(edge.target)
       const isHighlighted = highlightedAgents.size > 0 &&
         highlightedAgents.has(edge.source) &&
         highlightedAgents.has(edge.target)
