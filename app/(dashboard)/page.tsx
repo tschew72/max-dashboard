@@ -88,7 +88,7 @@ function formatSgtTime(date: Date): string {
 }
 
 const STATUS_CONFIG = {
-  BACKLOG:     { color: '#626f86', label: 'Backlog' },
+  BACKLOG:     { color: 'var(--muted)', label: 'Backlog' },
   IN_PROGRESS: { color: '#0065ff', label: 'In Progress' },
   REVIEW:      { color: '#ff8b00', label: 'Review' },
   DONE:        { color: '#36b37e', label: 'Done' },
@@ -105,7 +105,7 @@ const LABEL_COLORS: Record<string, string> = {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg ${className}`} style={{ background: '#2c333a' }} />
+  return <div className={`animate-pulse rounded-lg ${className}`} style={{ background: 'var(--border)' }} />
 }
 
 function DonutRing({ data }: { data: { value: number; color: string; label: string }[] }) {
@@ -113,7 +113,7 @@ function DonutRing({ data }: { data: { value: number; color: string; label: stri
   if (total === 0) {
     return (
       <svg viewBox="0 0 80 80" className="w-24 h-24">
-        <circle cx="40" cy="40" r="30" fill="none" stroke="#2c333a" strokeWidth="10" />
+        <circle cx="40" cy="40" r="30" fill="none" stroke="var(--border)" strokeWidth="10" />
       </svg>
     )
   }
@@ -122,7 +122,7 @@ function DonutRing({ data }: { data: { value: number; color: string; label: stri
   let offset = 0
   return (
     <svg viewBox="0 0 80 80" className="w-24 h-24" style={{ transform: 'rotate(-90deg)' }}>
-      <circle cx="40" cy="40" r={radius} fill="none" stroke="#22272b" strokeWidth="10" />
+      <circle cx="40" cy="40" r={radius} fill="none" stroke="var(--card)" strokeWidth="10" />
       {data.map((d, i) => {
         const pct = d.value / total
         const dash = circ * pct
@@ -140,7 +140,7 @@ function DonutRing({ data }: { data: { value: number; color: string; label: stri
 
 function ProgressBar({ pct, color }: { pct: number; color: string }) {
   return (
-    <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: '#2c333a' }}>
+    <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
       <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
     </div>
   )
@@ -153,13 +153,13 @@ function TaskRow({ task }: { task: Task }) {
   return (
     <Link href="/tasks">
       <div className="flex items-center gap-3 py-2.5 px-3 rounded-lg active:bg-white/5"
-        style={{ borderBottom: '1px solid #2c333a20' }}>
+        style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ background: LABEL_COLORS[task.label] ?? '#626f86' }} />
+          style={{ background: LABEL_COLORS[task.label] ?? 'var(--muted)' }} />
         <div className="flex-1 min-w-0">
           <p className="text-sm text-white leading-snug truncate">{task.title}</p>
           {due && (
-            <p className="text-[11px] mt-0.5" style={{ color: isOverdue ? '#ff8f73' : '#626f86' }}>
+            <p className="text-[11px] mt-0.5" style={{ color: isOverdue ? '#ff8f73' : 'var(--muted)' }}>
               {isOverdue
                 ? `⚠ ${Math.abs(daysUntil!)}d overdue`
                 : daysUntil === 0 ? 'Due today'
@@ -170,7 +170,7 @@ function TaskRow({ task }: { task: Task }) {
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <span className="text-xs">{PRIORITY_EMOJI[task.priority]}</span>
-          <ChevronRight size={12} style={{ color: '#3d4f61' }} />
+          <ChevronRight size={12} style={{ color: 'var(--border)' }} />
         </div>
       </div>
     </Link>
@@ -188,12 +188,12 @@ function KPICard({
     <Link href={href}>
       <div className="flex flex-col items-center justify-center gap-1 rounded-xl p-3 min-w-0 flex-1 transition-colors"
         style={{
-          background: isError ? '#ff563015' : '#22272b',
-          border: `1px solid ${isError ? '#ff563044' : '#2c333a'}`,
+          background: isError ? '#ff563015' : 'var(--card)',
+          border: `1px solid ${isError ? '#ff563044' : 'var(--border)'}`,
         }}>
-        <span style={{ color: isError ? '#ff8f73' : '#8c9bab' }}>{icon}</span>
-        <span className="text-xl font-bold" style={{ color: isError ? '#ff8f73' : '#b6c2cf' }}>{value}</span>
-        <span className="text-[10px] font-medium text-center leading-tight" style={{ color: '#626f86' }}>{label}</span>
+        <span style={{ color: isError ? '#ff8f73' : 'var(--muted)' }}>{icon}</span>
+        <span className="text-xl font-bold" style={{ color: isError ? '#ff8f73' : 'var(--text)' }}>{value}</span>
+        <span className="text-[10px] font-medium text-center leading-tight" style={{ color: 'var(--muted)' }}>{label}</span>
         {subtitle && (
           <span className="text-[10px] text-center leading-tight" style={{ color: isError ? '#ff8f73' : '#579dff' }}>{subtitle}</span>
         )}
@@ -240,12 +240,12 @@ function SpawnAgentModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="rounded-xl p-4 space-y-3" style={{ background: '#1d2125', border: '1px solid #2c333a' }}>
+    <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-white flex items-center gap-2">
           <Bot size={16} style={{ color: '#579dff' }} /> Spawn Agent
         </p>
-        <button onClick={onClose} className="p-1 rounded-lg" style={{ color: '#626f86' }}>
+        <button onClick={onClose} className="p-1 rounded-lg" style={{ color: 'var(--muted)' }}>
           <X size={14} />
         </button>
       </div>
@@ -253,7 +253,7 @@ function SpawnAgentModal({ onClose }: { onClose: () => void }) {
         value={agentId}
         onChange={(e) => setAgentId(e.target.value)}
         className="w-full rounded-lg px-3 py-2 text-sm"
-        style={{ background: '#22272b', color: '#b6c2cf', border: '1px solid #2c333a' }}
+        style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
       >
         <option value="">Select agent…</option>
         {agents.map(a => (
@@ -266,14 +266,14 @@ function SpawnAgentModal({ onClose }: { onClose: () => void }) {
         placeholder="Describe the task…"
         rows={3}
         className="w-full rounded-lg px-3 py-2 text-sm resize-none"
-        style={{ background: '#22272b', color: '#b6c2cf', border: '1px solid #2c333a' }}
+        style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
       />
       <div className="flex items-center gap-2">
         <button
           onClick={handleSubmit}
           disabled={submitting || !agentId || !task.trim()}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40"
-          style={{ background: '#0052cc', color: '#fff' }}
+          style={{ background: '#0052cc', color: 'var(--text)' }}
         >
           {submitting ? <RefreshCw size={14} className="animate-spin" /> : <Zap size={14} />}
           {submitting ? 'Spawning…' : 'Spawn'}
@@ -318,16 +318,16 @@ function ShieldScanPanel({ onClose }: { onClose: () => void }) {
   }
 
   const verdictColor: Record<string, string> = {
-    allow: '#36b37e', warn: '#ff8b00', block: '#ff5630', error: '#626f86',
+    allow: '#36b37e', warn: '#ff8b00', block: '#ff5630', error: 'var(--muted)',
   }
 
   return (
-    <div className="rounded-xl p-4 space-y-3" style={{ background: '#1d2125', border: '1px solid #2c333a' }}>
+    <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-white flex items-center gap-2">
           <Shield size={16} style={{ color: '#ff5630' }} /> PromptDome Scan
         </p>
-        <button onClick={onClose} className="p-1 rounded-lg" style={{ color: '#626f86' }}>
+        <button onClick={onClose} className="p-1 rounded-lg" style={{ color: 'var(--muted)' }}>
           <X size={14} />
         </button>
       </div>
@@ -337,7 +337,7 @@ function ShieldScanPanel({ onClose }: { onClose: () => void }) {
         placeholder="Paste text to scan for prompt injection…"
         rows={3}
         className="w-full rounded-lg px-3 py-2 text-sm resize-none"
-        style={{ background: '#22272b', color: '#b6c2cf', border: '1px solid #2c333a' }}
+        style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
       />
       <div className="flex items-center gap-2">
         <button
@@ -353,8 +353,8 @@ function ShieldScanPanel({ onClose }: { onClose: () => void }) {
           <span
             className="text-xs font-semibold px-2.5 py-1 rounded-full uppercase"
             style={{
-              background: `${verdictColor[result.recommendation] || '#626f86'}22`,
-              color: verdictColor[result.recommendation] || '#626f86',
+              background: `${verdictColor[result.recommendation] || 'var(--muted)'}22`,
+              color: verdictColor[result.recommendation] || 'var(--muted)',
             }}
           >
             {result.recommendation}{result.score != null ? ` · ${(result.score * 100).toFixed(0)}%` : ''}
@@ -364,7 +364,7 @@ function ShieldScanPanel({ onClose }: { onClose: () => void }) {
       {result && result.recommendation !== 'error' && result.findings && result.findings.length > 0 && (
         <div className="space-y-1 pt-1">
           {result.findings.map((f, i) => (
-            <p key={i} className="text-xs" style={{ color: '#8c9bab' }}>
+            <p key={i} className="text-xs" style={{ color: 'var(--muted)' }}>
               <span className="font-semibold" style={{ color: '#ff8b00' }}>{f.category}:</span> {f.description}
             </p>
           ))}
@@ -570,13 +570,13 @@ export default function HomePage() {
   const { text: greet, emoji: greetEmoji } = mounted ? greeting() : { text: 'Hello', emoji: '👋' }
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: '#1d2125' }}>
+    <div className="min-h-screen pb-24" style={{ background: 'var(--bg)' }}>
 
       {/* ── Header with Live Clock (WI-083) ── */}
       <div className="sticky top-0 z-40 px-4 pt-4 pb-3 flex items-start justify-between"
-        style={{ background: '#1d2125', borderBottom: '1px solid #2c333a' }}>
+        style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
         <div>
-          <p className="text-xs font-medium" style={{ color: '#626f86' }}>{greetEmoji} {greet}</p>
+          <p className="text-xs font-medium" style={{ color: 'var(--muted)' }}>{greetEmoji} {greet}</p>
           <h1 className="text-xl font-bold text-white leading-tight flex items-center gap-2">
             Vince
             {sseConnected && (
@@ -584,7 +584,7 @@ export default function HomePage() {
             )}
           </h1>
           <div className="flex items-center gap-2 mt-0.5">
-            <p className="text-[11px] font-mono" style={{ color: '#626f86' }}>{mounted ? formatSgtTime(now) : ''}</p>
+            <p className="text-[11px] font-mono" style={{ color: 'var(--muted)' }}>{mounted ? formatSgtTime(now) : ''}</p>
             {health && (
               <div className="flex items-center gap-1">
                 <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: health.gateway.status === 'running' ? '#36b37e' : '#ff5630' }} />
@@ -598,12 +598,12 @@ export default function HomePage() {
         <div className="flex items-center gap-1.5 pt-1">
           <button onClick={refreshAll}
             className="w-9 h-9 flex items-center justify-center rounded-xl"
-            style={{ background: '#22272b', color: '#8c9bab' }}>
+            style={{ background: 'var(--card)', color: 'var(--muted)' }}>
             <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           </button>
           <button onClick={handleLogout}
             className="w-9 h-9 flex items-center justify-center rounded-xl"
-            style={{ background: '#22272b', color: '#8c9bab' }}>
+            style={{ background: 'var(--card)', color: 'var(--muted)' }}>
             <LogOut size={16} />
           </button>
         </div>
@@ -668,33 +668,33 @@ export default function HomePage() {
         </div>
 
         {/* ── 4. Quick Actions (WI-081) ── */}
-        <div className="rounded-2xl p-4" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
-          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#626f86' }}>Quick Actions</p>
+        <div className="rounded-2xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--muted)' }}>Quick Actions</p>
           <div className="grid grid-cols-4 gap-2">
             <Link href="/tasks?new=1">
               <div className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center"
-                style={{ background: '#0052cc', color: '#fff' }}>
+                style={{ background: '#0052cc', color: 'var(--text)' }}>
                 <Plus size={18} />
                 <span className="text-[11px] font-semibold leading-tight">New Task</span>
               </div>
             </Link>
             <button onClick={() => { setShowSpawnModal(!showSpawnModal); setShowScanPanel(false) }}>
               <div className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center"
-                style={{ background: showSpawnModal ? '#0065ff22' : '#2c333a', color: showSpawnModal ? '#579dff' : '#b6c2cf', border: `1px solid ${showSpawnModal ? '#579dff44' : '#3d4f61'}` }}>
+                style={{ background: showSpawnModal ? '#0065ff22' : 'var(--border)', color: showSpawnModal ? '#579dff' : 'var(--text)', border: `1px solid ${showSpawnModal ? '#579dff44' : 'var(--border)'}` }}>
                 <Bot size={18} />
                 <span className="text-[11px] font-semibold leading-tight">Spawn Agent</span>
               </div>
             </button>
             <button onClick={() => { setShowScanPanel(!showScanPanel); setShowSpawnModal(false) }}>
               <div className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center"
-                style={{ background: showScanPanel ? '#ff563015' : '#2c333a', color: showScanPanel ? '#ff8f73' : '#b6c2cf', border: `1px solid ${showScanPanel ? '#ff563044' : '#3d4f61'}` }}>
+                style={{ background: showScanPanel ? '#ff563015' : 'var(--border)', color: showScanPanel ? '#ff8f73' : 'var(--text)', border: `1px solid ${showScanPanel ? '#ff563044' : 'var(--border)'}` }}>
                 <Shield size={18} />
                 <span className="text-[11px] font-semibold leading-tight">Run Scan</span>
               </div>
             </button>
             <Link href="/calendar">
               <div className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center"
-                style={{ background: '#2c333a', color: '#b6c2cf', border: '1px solid #3d4f61' }}>
+                style={{ background: 'var(--border)', color: 'var(--text)', border: '1px solid var(--border)' }}>
                 <Calendar size={18} />
                 <span className="text-[11px] font-semibold leading-tight">Today</span>
               </div>
@@ -718,7 +718,7 @@ export default function HomePage() {
           <div className="lg:col-span-3 space-y-4">
             {/* Pending Approvals */}
             {!loading && reviewTasks.length > 0 && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #6554c033' }}>
+              <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid #6554c033' }}>
                 <div className="px-4 pt-3 pb-2 flex items-center gap-2" style={{ background: '#6554c008' }}>
                   <ThumbsUp size={12} style={{ color: '#9f8fef' }} />
                   <p className="text-xs font-semibold uppercase tracking-wider flex-1" style={{ color: '#9f8fef' }}>
@@ -728,10 +728,10 @@ export default function HomePage() {
                 <div className="px-3 pb-3 pt-2 space-y-2">
                   {reviewTasks.slice(0, 3).map(t => (
                     <div key={t.id} className="flex items-center gap-2 rounded-xl p-3"
-                      style={{ background: '#1d2125', border: '1px solid #2c333a' }}>
+                      style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white truncate leading-snug">{t.title}</p>
-                        <p className="text-[11px] mt-0.5" style={{ color: '#626f86' }}>{t.assignee} · {t.label}</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>{t.assignee} · {t.label}</p>
                       </div>
                       <div className="flex gap-1.5 flex-shrink-0">
                         <button disabled={approvingId === t.id} onClick={() => approveTask(t.id, true)}
@@ -749,7 +749,7 @@ export default function HomePage() {
                   ))}
                   {reviewTasks.length > 3 && (
                     <Link href="/tasks">
-                      <p className="text-center text-xs py-1" style={{ color: '#626f86' }}>View {reviewTasks.length - 3} more →</p>
+                      <p className="text-center text-xs py-1" style={{ color: 'var(--muted)' }}>View {reviewTasks.length - 3} more →</p>
                     </Link>
                   )}
                 </div>
@@ -757,9 +757,9 @@ export default function HomePage() {
             )}
 
             {/* Task Progress ring + breakdown */}
-            <div className="rounded-2xl p-4" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+            <div className="rounded-2xl p-4" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#626f86' }}>Task Progress</p>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>Task Progress</p>
                 <Link href="/tasks" className="text-xs font-semibold px-2.5 py-1 rounded-full"
                   style={{ background: '#0052cc22', color: '#579dff' }}>
                   Open Board
@@ -771,7 +771,7 @@ export default function HomePage() {
                     <DonutRing data={donutData} />
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <span className="text-lg font-bold text-white">{donePct}%</span>
-                      <span className="text-[10px]" style={{ color: '#626f86' }}>done</span>
+                      <span className="text-[10px]" style={{ color: 'var(--muted)' }}>done</span>
                     </div>
                   </div>
                   <div className="flex-1 space-y-2.5">
@@ -781,7 +781,7 @@ export default function HomePage() {
                       return (
                         <div key={key}>
                           <div className="flex justify-between text-xs mb-1">
-                            <span style={{ color: '#8c9bab' }}>{cfg.label}</span>
+                            <span style={{ color: 'var(--muted)' }}>{cfg.label}</span>
                             <span className="font-semibold text-white">{count}</span>
                           </div>
                           <ProgressBar pct={pct} color={cfg.color} />
@@ -794,9 +794,9 @@ export default function HomePage() {
             </div>
 
             {/* Upcoming (next 48h) */}
-            <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+            <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
               <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#626f86' }}>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
                   <Clock size={10} className="inline mr-1" />Upcoming · 48h
                 </p>
                 {!loading && upcomingTasks.length > 0 && (
@@ -810,17 +810,17 @@ export default function HomePage() {
                   <Skeleton className="h-10" />
                 </div>
               ) : upcomingTasks.length === 0 ? (
-                <div className="px-4 pb-4 pt-2 flex flex-col items-center gap-1" style={{ color: '#626f86' }}>
+                <div className="px-4 pb-4 pt-2 flex flex-col items-center gap-1" style={{ color: 'var(--muted)' }}>
                   <CheckCircle2 size={20} />
                   <p className="text-sm font-medium text-white">Nothing on the clock.</p>
-                  <p className="text-xs" style={{ color: '#626f86' }}>No tasks due in the next 48 hours. Rare. Enjoy it.</p>
+                  <p className="text-xs" style={{ color: 'var(--muted)' }}>No tasks due in the next 48 hours. Rare. Enjoy it.</p>
                 </div>
               ) : (
                 <div className="px-1 pb-1">
                   {upcomingTasks.slice(0, 5).map(t => <TaskRow key={t.id} task={t} />)}
                   {upcomingTasks.length > 5 && (
                     <Link href="/tasks">
-                      <p className="text-center text-xs py-2" style={{ color: '#626f86' }}>
+                      <p className="text-center text-xs py-2" style={{ color: 'var(--muted)' }}>
                         View {upcomingTasks.length - 5} more →
                       </p>
                     </Link>
@@ -843,15 +843,15 @@ export default function HomePage() {
         </div>
 
         {/* ── 7. Infrastructure (collapsible) ── */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <button
             onClick={() => setInfraCollapsed(!infraCollapsed)}
             className="w-full px-4 py-3 flex items-center justify-between"
           >
-            <p className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#626f86' }}>
+            <p className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: 'var(--muted)' }}>
               <Server size={12} /> Infrastructure
             </p>
-            {infraCollapsed ? <ChevronDown size={14} style={{ color: '#626f86' }} /> : <ChevronUp size={14} style={{ color: '#626f86' }} />}
+            {infraCollapsed ? <ChevronDown size={14} style={{ color: 'var(--muted)' }} /> : <ChevronUp size={14} style={{ color: 'var(--muted)' }} />}
           </button>
           {!infraCollapsed && (
             <div className="px-4 pb-4 space-y-4">
@@ -868,10 +868,10 @@ export default function HomePage() {
                   <>
                     <div>
                       <div className="flex justify-between text-xs mb-1.5">
-                        <span style={{ color: '#8c9bab' }}>RAM</span>
+                        <span style={{ color: 'var(--muted)' }}>RAM</span>
                         <span className="font-semibold text-white">
                           {health.memory.used}MB / {health.memory.total}MB
-                          <span className="ml-1.5 font-normal" style={{ color: health.memory.percent > 80 ? '#ff8f73' : '#626f86' }}>
+                          <span className="ml-1.5 font-normal" style={{ color: health.memory.percent > 80 ? '#ff8f73' : 'var(--muted)' }}>
                             ({health.memory.percent}%)
                           </span>
                         </span>
@@ -880,10 +880,10 @@ export default function HomePage() {
                     </div>
                     <div>
                       <div className="flex justify-between text-xs mb-1.5">
-                        <span style={{ color: '#8c9bab' }}>Disk</span>
+                        <span style={{ color: 'var(--muted)' }}>Disk</span>
                         <span className="font-semibold text-white">
                           {health.disk.used} / {health.disk.total}
-                          <span className="ml-1.5 font-normal" style={{ color: health.disk.percent > 80 ? '#ff8f73' : '#626f86' }}>
+                          <span className="ml-1.5 font-normal" style={{ color: health.disk.percent > 80 ? '#ff8f73' : 'var(--muted)' }}>
                             ({health.disk.percent}%)
                           </span>
                         </span>
@@ -893,8 +893,8 @@ export default function HomePage() {
                     {health.openclaw && (
                       <div className="rounded-xl p-3 flex items-center justify-between gap-3"
                         style={{
-                          background: '#1d2125',
-                          border: `1px solid ${health.openclaw.upToDate ? '#2c333a' : '#ff8b0033'}`,
+                          background: 'var(--bg)',
+                          border: `1px solid ${health.openclaw.upToDate ? 'var(--border)' : '#ff8b0033'}`,
                         }}>
                         <div className="flex items-center gap-2.5">
                           <span className="text-lg">⚡</span>
@@ -914,7 +914,7 @@ export default function HomePage() {
                               style={{ background: '#ff8b0022', color: '#ff8b00' }}>
                               ↑ Update available
                             </span>
-                            <p className="text-[10px] mt-1 font-mono" style={{ color: '#626f86' }}>
+                            <p className="text-[10px] mt-1 font-mono" style={{ color: 'var(--muted)' }}>
                               latest: v{health.openclaw.latest}
                             </p>
                           </div>
@@ -923,10 +923,10 @@ export default function HomePage() {
                     )}
                   </>
                 ) : (
-                  <div className="flex flex-col items-center gap-1 py-4" style={{ color: '#626f86' }}>
+                  <div className="flex flex-col items-center gap-1 py-4" style={{ color: 'var(--muted)' }}>
                     <ServerOff size={20} />
                     <p className="text-sm font-medium text-white">Health check failed.</p>
-                    <p className="text-xs" style={{ color: '#626f86' }}>Cannot reach the health endpoint. Check gateway status.</p>
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>Cannot reach the health endpoint. Check gateway status.</p>
                   </div>
                 )}
               </div>

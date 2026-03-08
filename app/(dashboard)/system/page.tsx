@@ -64,7 +64,7 @@ function StatusBadge({ status }: { status: string }) {
     stopping: { bg: '#ff8b0022', fg: '#ffab00' },
     launching: { bg: '#0052cc22', fg: '#579dff' },
   }
-  const c = colors[status] ?? { bg: '#2c333a', fg: '#626f86' }
+  const c = colors[status] ?? { bg: 'var(--border)', fg: 'var(--muted)' }
   return (
     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: c.bg, color: c.fg }}>
       {status}

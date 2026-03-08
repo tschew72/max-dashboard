@@ -46,14 +46,14 @@ export default function PromptDomePanel({ onSSERefresh }: { onSSERefresh?: numbe
   const allowPct = barTotal > 0 ? (allowCount / barTotal) * 100 : 0
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#626f86' }}>
+        <p className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: 'var(--muted)' }}>
           <Shield size={11} /> PromptDome
         </p>
         <div className="flex items-center gap-2">
           {customerCount > 0 && (
-            <span className="text-[10px]" style={{ color: '#626f86' }}>{customerCount} customer{customerCount !== 1 ? 's' : ''}</span>
+            <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{customerCount} customer{customerCount !== 1 ? 's' : ''}</span>
           )}
           <Link href="/shield" className="text-xs font-semibold px-2.5 py-1 rounded-full"
             style={{ background: '#0052cc22', color: '#579dff' }}>
@@ -66,12 +66,12 @@ export default function PromptDomePanel({ onSSERefresh }: { onSSERefresh?: numbe
         {/* Hero stat */}
         <div className="text-center py-2">
           <p className="text-3xl font-bold text-white">{todayTotal.toLocaleString()}</p>
-          <p className="text-[11px]" style={{ color: '#626f86' }}>scans today</p>
+          <p className="text-[11px]" style={{ color: 'var(--muted)' }}>scans today</p>
         </div>
 
         {/* Breakdown bar */}
         <div className="mt-2">
-          <div className="flex h-2.5 rounded-full overflow-hidden" style={{ background: '#2c333a' }}>
+          <div className="flex h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
             {blockPct > 0 && <div style={{ width: `${blockPct}%`, background: '#ff5630' }} />}
             {warnPct > 0 && <div style={{ width: `${warnPct}%`, background: '#ff8b00' }} />}
             {allowPct > 0 && <div style={{ width: `${allowPct}%`, background: '#36b37e' }} />}
@@ -86,7 +86,7 @@ export default function PromptDomePanel({ onSSERefresh }: { onSSERefresh?: numbe
         {/* Top categories */}
         {topCategories.length > 0 && (
           <div className="mt-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#3d4f61' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--border)' }}>
               Top Threats (7d)
             </p>
             <div className="space-y-1">
@@ -106,7 +106,7 @@ export default function PromptDomePanel({ onSSERefresh }: { onSSERefresh?: numbe
         {/* Recent activity */}
         {recentScans.length > 0 && (
           <div className="mt-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#3d4f61' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--border)' }}>
               Recent Scans
             </p>
             <div className="space-y-1">
@@ -115,7 +115,7 @@ export default function PromptDomePanel({ onSSERefresh }: { onSSERefresh?: numbe
                   style={{ background: '#161b22', border: '1px solid #21262d' }}>
                   <VerdictBadge verdict={scan.recommendation} />
                   <span className="text-[10px] text-white flex-1 truncate">{scan.textPreview}</span>
-                  <span className="text-[10px] flex-shrink-0" style={{ color: '#626f86' }}>{relTime(scan.createdAt)}</span>
+                  <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--muted)' }}>{relTime(scan.createdAt)}</span>
                 </div>
               ))}
             </div>

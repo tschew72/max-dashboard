@@ -59,7 +59,7 @@ export default function SecurityAlertsWidget({ onSSERefresh }: { onSSERefresh?: 
   return (
     <div className="rounded-2xl overflow-hidden"
       style={{
-        background: '#22272b',
+        background: 'var(--card)',
         border: `1px solid ${criticalCount > 0 ? '#ff563044' : '#ff8b0033'}`,
       }}>
       <div className="px-4 pt-3 pb-2 flex items-center gap-2"
@@ -70,7 +70,7 @@ export default function SecurityAlertsWidget({ onSSERefresh }: { onSSERefresh?: 
           Security Alerts — {totalCount}
         </p>
         {headerParts.length > 0 && (
-          <span className="text-[10px]" style={{ color: '#626f86' }}>
+          <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
             {headerParts.join(' · ')}
           </span>
         )}
@@ -81,7 +81,7 @@ export default function SecurityAlertsWidget({ onSSERefresh }: { onSSERefresh?: 
           <AlertRow key={alert.id} alert={alert} />
         ))}
         {alerts.length > 5 && (
-          <p className="text-center text-[10px] py-1" style={{ color: '#626f86' }}>
+          <p className="text-center text-[10px] py-1" style={{ color: 'var(--muted)' }}>
             +{alerts.length - 5} more alerts
           </p>
         )}
@@ -103,16 +103,16 @@ function AlertRow({ alert }: { alert: SecurityAlert }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-white flex-1 truncate">{alert.title}</span>
-          <span className="text-[10px] flex-shrink-0" style={{ color: '#626f86' }}>{relTime(alert.time)}</span>
+          <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--muted)' }}>{relTime(alert.time)}</span>
         </div>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-[10px]" style={{ color: '#626f86' }}>{alert.sourceLabel}</span>
+          <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{alert.sourceLabel}</span>
           {alert.detail && (
-            <span className="text-[10px] truncate" style={{ color: '#3d4f61' }}>{alert.detail}</span>
+            <span className="text-[10px] truncate" style={{ color: 'var(--border)' }}>{alert.detail}</span>
           )}
         </div>
       </div>
-      {alert.link && <ChevronRight size={12} className="flex-shrink-0 mt-1" style={{ color: '#3d4f61' }} />}
+      {alert.link && <ChevronRight size={12} className="flex-shrink-0 mt-1" style={{ color: 'var(--border)' }} />}
     </div>
   )
 

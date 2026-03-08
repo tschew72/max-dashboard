@@ -39,12 +39,12 @@ export default function GmailInboxPanel({ onSSERefresh }: { onSSERefresh?: numbe
   const { messages, unreadCount } = data
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#626f86' }}>
+        <p className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: 'var(--muted)' }}>
           <Mail size={11} /> Gmail Inbox
           {unreadCount > 0 && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#0052cc', color: '#fff' }}>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#0052cc', color: 'var(--text)' }}>
               {unreadCount}
             </span>
           )}
@@ -56,7 +56,7 @@ export default function GmailInboxPanel({ onSSERefresh }: { onSSERefresh?: numbe
       </div>
 
       {messages.length === 0 ? (
-        <div className="px-4 pb-4 pt-1 flex items-center gap-2" style={{ color: '#626f86' }}>
+        <div className="px-4 pb-4 pt-1 flex items-center gap-2" style={{ color: 'var(--muted)' }}>
           <Mail size={14} />
           <p className="text-sm">No recent emails</p>
         </div>
@@ -70,12 +70,12 @@ export default function GmailInboxPanel({ onSSERefresh }: { onSSERefresh?: numbe
                 borderLeft: msg.isRead ? undefined : '3px solid #579dff',
               }}>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium flex-1 truncate" style={{ color: msg.isRead ? '#8c9bab' : '#fff' }}>
+                <span className="text-xs font-medium flex-1 truncate" style={{ color: msg.isRead ? 'var(--muted)' : 'var(--text)' }}>
                   {msg.fromName}
                 </span>
-                <span className="text-[10px] flex-shrink-0" style={{ color: '#626f86' }}>{relTime(msg.receivedAt)}</span>
+                <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--muted)' }}>{relTime(msg.receivedAt)}</span>
               </div>
-              <p className="text-[11px] mt-0.5 truncate" style={{ color: msg.isRead ? '#626f86' : '#b6c2cf' }}>
+              <p className="text-[11px] mt-0.5 truncate" style={{ color: msg.isRead ? 'var(--muted)' : 'var(--text)' }}>
                 {msg.subject}
               </p>
               <div className="flex items-center gap-2 mt-1">
@@ -83,7 +83,7 @@ export default function GmailInboxPanel({ onSSERefresh }: { onSSERefresh?: numbe
                 {msg.actionStatus === 'executed' ? (
                   <span className="text-[10px]" style={{ color: '#36b37e' }}>✅ Executed</span>
                 ) : (
-                  <span className="text-[10px]" style={{ color: '#626f86' }}>📨 Received</span>
+                  <span className="text-[10px]" style={{ color: 'var(--muted)' }}>📨 Received</span>
                 )}
               </div>
             </div>

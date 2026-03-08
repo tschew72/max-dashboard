@@ -9,7 +9,7 @@ import type { InfraPanelData } from '@/types/dashboard'
 function StatusBadge({ status }: { status: string }) {
   const isOnline = status === 'online' || status === 'running'
   const isError = status === 'errored' || status === 'exited'
-  const color = isOnline ? '#36b37e' : isError ? '#ff5630' : '#626f86'
+  const color = isOnline ? '#36b37e' : isError ? '#ff5630' : 'var(--muted)'
   const bg = isOnline ? '#36b37e22' : isError ? '#ff563022' : '#626f8622'
   return (
     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color, background: bg }}>
@@ -46,9 +46,9 @@ export default function InfraHealthPanel({ onSSERefresh }: { onSSERefresh?: numb
   })
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#626f86' }}>
+        <p className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: 'var(--muted)' }}>
           <Server size={11} /> Infrastructure
         </p>
         <div className="flex items-center gap-2">
@@ -58,7 +58,7 @@ export default function InfraHealthPanel({ onSSERefresh }: { onSSERefresh?: numb
               <AlertTriangle size={9} /> {errorCount} error{errorCount !== 1 ? 's' : ''}
             </span>
           )}
-          <span className="text-[10px]" style={{ color: '#626f86' }}>
+          <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
             {pm2Count} processes · {dockerCount} containers
           </span>
         </div>
@@ -66,7 +66,7 @@ export default function InfraHealthPanel({ onSSERefresh }: { onSSERefresh?: numb
 
       {/* PM2 */}
       <div className="px-3 pb-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider px-1 pb-1.5 pt-1" style={{ color: '#3d4f61' }}>PM2</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wider px-1 pb-1.5 pt-1" style={{ color: 'var(--border)' }}>PM2</p>
         <div className="space-y-1">
           {sortedPM2.map(p => (
             <Link href="/system" key={p.name}>
@@ -77,8 +77,8 @@ export default function InfraHealthPanel({ onSSERefresh }: { onSSERefresh?: numb
                 }}>
                 <span className="text-xs font-medium text-white flex-1 truncate">{p.name}</span>
                 <StatusBadge status={p.status} />
-                <span className="text-[10px] w-8 text-right" style={{ color: '#626f86' }}>{formatUptime(p.uptime)}</span>
-                <span className="text-[10px] w-10 text-right" style={{ color: '#626f86' }}>{p.memory}MB</span>
+                <span className="text-[10px] w-8 text-right" style={{ color: 'var(--muted)' }}>{formatUptime(p.uptime)}</span>
+                <span className="text-[10px] w-10 text-right" style={{ color: 'var(--muted)' }}>{p.memory}MB</span>
                 {p.restarts > 0 && (
                   <span className="text-[10px]" style={{ color: '#ff8f73' }}>↻{p.restarts}</span>
                 )}
@@ -91,7 +91,7 @@ export default function InfraHealthPanel({ onSSERefresh }: { onSSERefresh?: numb
       {/* Docker */}
       {docker.length > 0 && (
         <div className="px-3 pb-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider px-1 pb-1.5 pt-1 flex items-center gap-1" style={{ color: '#3d4f61' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wider px-1 pb-1.5 pt-1 flex items-center gap-1" style={{ color: 'var(--border)' }}>
             <Container size={9} /> Docker
           </p>
           <div className="space-y-1">
@@ -103,7 +103,7 @@ export default function InfraHealthPanel({ onSSERefresh }: { onSSERefresh?: numb
                 }}>
                 <span className="text-xs font-medium text-white flex-1 truncate">{c.name}</span>
                 <StatusBadge status={c.state} />
-                <span className="text-[10px]" style={{ color: '#626f86' }}>{c.uptime}</span>
+                <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{c.uptime}</span>
               </div>
             ))}
           </div>

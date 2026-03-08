@@ -51,9 +51,9 @@ export default function AgentActivityPanel({ onSSERefresh }: { onSSERefresh?: nu
   const filtered = filter === 'all' ? runs : runs.filter(r => filter === 'ok' ? r.status === 'ok' : r.status !== 'ok')
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: '#22272b', border: '1px solid #2c333a' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#626f86' }}>
+        <p className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: 'var(--muted)' }}>
           <Bot size={11} /> Agent Activity
         </p>
         <Link href="/agents" className="text-xs font-semibold px-2.5 py-1 rounded-full"
@@ -69,7 +69,7 @@ export default function AgentActivityPanel({ onSSERefresh }: { onSSERefresh?: nu
             className="text-[10px] font-semibold px-2.5 py-1 rounded-full capitalize"
             style={{
               background: filter === tab ? '#0052cc33' : 'transparent',
-              color: filter === tab ? '#579dff' : '#626f86',
+              color: filter === tab ? '#579dff' : 'var(--muted)',
             }}>
             {tab === 'ok' ? 'Succeeded' : tab === 'error' ? 'Failed' : 'All'}
           </button>
@@ -77,7 +77,7 @@ export default function AgentActivityPanel({ onSSERefresh }: { onSSERefresh?: nu
       </div>
 
       {filtered.length === 0 ? (
-        <div className="px-4 pb-4 pt-1 flex items-center gap-2" style={{ color: '#626f86' }}>
+        <div className="px-4 pb-4 pt-1 flex items-center gap-2" style={{ color: 'var(--muted)' }}>
           <CheckCircle2 size={14} />
           <p className="text-sm">No recent agent activity</p>
         </div>
@@ -107,28 +107,28 @@ export default function AgentActivityPanel({ onSSERefresh }: { onSSERefresh?: nu
                 <div className="flex items-center gap-2">
                   <span className="text-sm flex-shrink-0">{agentEmoji}</span>
                   <span className="text-xs font-medium text-white flex-1 truncate">{run.jobName}</span>
-                  <span className="text-[10px] flex-shrink-0" style={{ color: '#626f86' }}>{ago}</span>
+                  <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--muted)' }}>{ago}</span>
                 </div>
                 <div className="flex items-center gap-2 mt-1 pl-6">
                   <span className="text-[10px] font-semibold" style={{ color: dur.color }}>{dur.text}</span>
                   {modelShort && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#2c333a', color: '#8c9bab' }}>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--border)', color: 'var(--muted)' }}>
                       {modelShort}
                     </span>
                   )}
                   {run.usage && (
-                    <span className="text-[10px]" style={{ color: '#626f86' }}>
+                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
                       {formatTokens(run.usage.total_tokens)} tok
                     </span>
                   )}
                   {run.costUsd > 0 && (
-                    <span className="text-[10px]" style={{ color: '#626f86' }}>
+                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
                       ${run.costUsd.toFixed(3)}
                     </span>
                   )}
                 </div>
                 {run.summary && (
-                  <p className="text-[10px] mt-1 pl-6 truncate" style={{ color: '#626f86' }}>
+                  <p className="text-[10px] mt-1 pl-6 truncate" style={{ color: 'var(--muted)' }}>
                     {run.summary.substring(0, 80)}
                   </p>
                 )}
