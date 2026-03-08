@@ -194,7 +194,7 @@ function getAgentStatus(agentId: string): { status: 'idle' | 'running' | 'done' 
     const now = Date.now()
 
     if (latest > now - 90_000) return { status: 'running', lastUpdated: latest }
-    if (latest > now - 300_000) return { status: 'done', lastUpdated: latest }
+    if (latest > now - 120_000) return { status: 'done', lastUpdated: latest }
     return { status: 'idle', lastUpdated: latest }
   } catch {
     return { status: 'idle', lastUpdated: 0 }

@@ -16,7 +16,7 @@ function getStatus(agentId: string): 'idle' | 'running' | 'done' | 'error' {
     const latest = Math.max(...files.map(f => fs.statSync(path.join(dir, f)).mtimeMs))
     const age = Date.now() - latest
     if (age < 90_000) return 'running'
-    if (age < 300_000) return 'done'
+    if (age < 120_000) return 'done'  // "done" shows for max 2 min (was 5min — too long, looked like running)
     return 'idle'
   } catch { return 'idle' }
 }

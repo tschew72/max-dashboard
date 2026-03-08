@@ -270,23 +270,34 @@ function AgentNodeComponent({ data }: { data: Record<string, unknown> }) {
           {name}
         </span>
 
-        {/* Row 3: role badge */}
-        <span
-          style={{
-            fontSize: 10,
-            color: '#475569',
-            background: 'rgba(124,58,237,0.1)',
-            padding: '2px 6px',
-            borderRadius: 100,
-            alignSelf: 'flex-start',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            maxWidth: '100%',
-          }}
-        >
-          {role}
-        </span>
+        {/* Row 3: role + status label */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span
+            style={{
+              fontSize: 10,
+              color: '#475569',
+              background: 'rgba(124,58,237,0.1)',
+              padding: '2px 6px',
+              borderRadius: 100,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: 70,
+            }}
+          >
+            {role}
+          </span>
+          {isRunning && (
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              ● RUN
+            </span>
+          )}
+          {isDone && (
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#22c55e', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              ✓ DONE
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Done checkmark overlay */}
