@@ -22,6 +22,7 @@ const AGENT_META: Record<string, { name: string; emoji: string; role: string }> 
   writer:     { name: 'Wren',     emoji: '✍️', role: 'Writer' },
   ops:        { name: 'Ops',      emoji: '⚙️', role: 'Operations' },
   marketing:  { name: 'Maya',     emoji: '📣', role: 'Marketing' },
+  webdev:     { name: 'Webrin',   emoji: '🌐', role: 'Web Developer' },
 }
 
 // Pricing: [inputRatePerMToken, outputRatePerMToken]

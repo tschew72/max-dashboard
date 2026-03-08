@@ -57,6 +57,8 @@ const LAYOUT: Record<string, { x: number; y: number }> = {
   ciso:       { x: 360, y: 450 },
   ops:        { x: 540, y: 450 },
   marketing:  { x: 720, y: 450 },
+  // Row 5 (extended team)
+  webdev:     { x: 900, y: 300 },
 }
 
 function statusColor(status: string | undefined): string {
