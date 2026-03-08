@@ -203,6 +203,37 @@ body {
   opacity: 1;
 }
 
+/* ─── Agent Flow Animations ───────────────────────────────────────── */
+@keyframes agent-pulse { 0%,100%{opacity:.4} 50%{opacity:.8} }
+@keyframes agent-ring { to{transform:rotate(360deg)} }
+@keyframes agent-done { 0%,70%{opacity:1} 100%{opacity:0} }
+@keyframes agent-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(4px)} 75%{transform:translateX(-4px)} }
+@keyframes edge-march { to{stroke-dashoffset:0} }
+@keyframes particle-travel { from{offset-distance:0%} to{offset-distance:100%} }
+
+/* Agent node hover */
+.agent-node:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 12px rgba(124, 58, 237, 0.2) !important;
+  border-color: rgba(124, 58, 237, 0.4) !important;
+}
+
+/* React Flow dark theme overrides */
+.react-flow__controls-button {
+  background: transparent !important;
+  border: none !important;
+  color: var(--muted) !important;
+  fill: var(--muted) !important;
+}
+.react-flow__controls-button:hover {
+  background: rgba(124, 58, 237, 0.1) !important;
+  color: var(--accent-light) !important;
+  fill: var(--accent-light) !important;
+}
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
+
 /* Keyboard shortcut hints */
 kbd {
   font-family: 'SF Mono', 'Fira Code', monospace;

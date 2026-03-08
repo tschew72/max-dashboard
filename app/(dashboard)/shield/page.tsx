@@ -203,7 +203,14 @@ function LogRow({ entry }: { entry: LogEntry }) {
           {isBlock ? 'BLOCK' : isWarn ? 'WARN' : 'ALLOW'}
         </span>
         <span style={{ fontSize: 12, fontWeight: 700, color: accent, textAlign: 'right' }}>{entry.score}/100</span>
-        <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>{entry.consumer}</span>
+        <span style={{ textAlign: 'right' }}>
+          {entry.source === 'mcp' || entry.source === null
+            ? <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#10b98118', color: '#10b981', border: '1px solid #10b98144' }}>LIVE</span>
+            : entry.source?.startsWith('web')
+            ? <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#6366f118', color: '#6366f1', border: '1px solid #6366f144' }}>RESEARCH</span>
+            : <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#f59e0b18', color: '#f59e0b', border: '1px solid #f59e0b44' }}>{(entry.source ?? 'MCP').toUpperCase()}</span>
+          }
+        </span>
         <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>
           {entry.durationMs != null ? `${entry.durationMs}ms` : '—'}
         </span>
@@ -487,6 +494,7 @@ export default function ShieldPage() {
   const [logsMeta, setLogsMeta] = useState({ total: 0, page: 1, pages: 1 })
   const [logsLoading, setLogsLoading] = useState(false)
   const [logFilter, setLogFilter] = useState<'flagged' | 'all'>('flagged')
+  const [logSrc, setLogSrc]       = useState<'all' | 'general' | 'research'>('all')
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true)
@@ -499,17 +507,26 @@ export default function ShieldPage() {
   const loadLogs = useCallback(async (page = 1, filter = logFilter) => {
     setLogsLoading(true)
     try {
-      const r = await fetch(`/api/shield/logs?filter=${filter}&page=${page}&limit=25`)
+      const r = await fetch(`/api/shield/logs?filter=${filter}&page=${page}&limit=25&src=${logSrc}`)
       if (r.ok) {
         const data: LogsResponse = await r.json()
         setLogs(data.logs)
         setLogsMeta({ total: data.total, page: data.page, pages: data.pages })
       }
     } finally { setLogsLoading(false) }
-  }, [logFilter])
+  }, [logFilter, logSrc])
 
   useEffect(() => { loadStats() }, [loadStats])
   useEffect(() => { if (tab === 'logs') loadLogs(1) }, [tab, loadLogs])
+
+  const changeSrc = (s: 'all' | 'general' | 'research') => {
+    setLogSrc(s)
+    setLogsLoading(true)
+    fetch(`/api/shield/logs?filter=${logFilter}&page=1&limit=25&src=${s}`)
+      .then(r => r.json())
+      .then(d => { setLogs(d.logs ?? []); setLogsMeta({ total: d.total, page: d.page, pages: d.pages }); setLogsLoading(false) })
+      .catch(() => setLogsLoading(false))
+  }
 
   const changeFilter = (f: 'flagged' | 'all') => {
     setLogFilter(f)
@@ -632,6 +649,20 @@ export default function ShieldPage() {
                   color: logFilter === f ? '#fff' : 'var(--muted)',
                 }}>
                   {f === 'flagged' ? '⚠️ WARN + BLOCK' : 'All scans'}
+                </button>
+              ))}
+            </div>
+            {/* Source filter */}
+            <div style={{ display: 'flex', gap: 4 }}>
+              {([['all', 'All sources'], ['general', '🤖 Agent'], ['research', '🔍 Research']] as const).map(([s, label]) => (
+                <button key={s} onClick={() => changeSrc(s)} style={{
+                  padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  background: logSrc === s ? '#6366f122' : 'transparent',
+                  color: logSrc === s ? '#6366f1' : 'var(--muted)',
+                  border: logSrc === s ? '1px solid #6366f155' : '1px solid var(--border)',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {label}
                 </button>
               ))}
             </div>

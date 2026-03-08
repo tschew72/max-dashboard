@@ -1,9 +1,11 @@
 import { readTaskEvent } from '@/lib/taskEvents'
 import { readFileSync, existsSync } from 'fs'
+import path from 'path'
 
 export const dynamic = 'force-dynamic'
 
 const JOB_EVENT_FILE = '/tmp/max-dashboard-job-events.json'
+const AGENTS_DIR = '/root/.openclaw/agents'
 
 function readJobEvent(): { type: string; ts: number } | null {
   try {
@@ -14,12 +16,34 @@ function readJobEvent(): { type: string; ts: number } | null {
   }
 }
 
+function readAgentStatuses(): Record<string, number> {
+  const statuses: Record<string, number> = {}
+  try {
+    const agents = ['main', 'ba', 'dev', 'ux', 'qa', 'devops', 'cfo', 'writer', 'ciso', 'ops', 'marketing', 'researcher', 'sales']
+    for (const agentId of agents) {
+      const sessFile = path.join(AGENTS_DIR, agentId, 'sessions', 'sessions.json')
+      try {
+        if (!existsSync(sessFile)) continue
+        const data = JSON.parse(readFileSync(sessFile, 'utf8'))
+        let latest = 0
+        for (const sess of Object.values(data) as Array<{ updatedAt: number }>) {
+          if (sess.updatedAt > latest) latest = sess.updatedAt
+        }
+        statuses[agentId] = latest
+      } catch { /* skip */ }
+    }
+  } catch { /* skip */ }
+  return statuses
+}
+
 export async function GET() {
   const encoder = new TextEncoder()
   let lastTaskTs = Date.now()
   let lastJobTs = Date.now()
   let pingInterval: ReturnType<typeof setInterval> | null = null
   let panelInterval: ReturnType<typeof setInterval> | null = null
+  let agentStatusInterval: ReturnType<typeof setInterval> | null = null
+  let lastAgentStatuses: Record<string, number> = {}
 
   const stream = new ReadableStream({
     start(controller) {
@@ -53,6 +77,21 @@ export async function GET() {
         } catch { /* continue */ }
       }, 3000)
 
+      // Agent status polling every 15s
+      agentStatusInterval = setInterval(() => {
+        try {
+          const currentStatuses = readAgentStatuses()
+          for (const [agentId, ts] of Object.entries(currentStatuses)) {
+            if (!lastAgentStatuses[agentId] || ts > lastAgentStatuses[agentId]) {
+              const now = Date.now()
+              const status = ts > now - 2 * 60 * 1000 ? 'running' : ts > now - 5 * 60 * 1000 ? 'done' : 'idle'
+              send({ type: 'agent-status', data: { agentId, status, timestamp: new Date(ts).toISOString() } })
+            }
+          }
+          lastAgentStatuses = currentStatuses
+        } catch { /* continue */ }
+      }, 15000)
+
       // Periodic typed pushes every 30s for data panels
       panelInterval = setInterval(() => {
         const ts = Date.now()
@@ -66,6 +105,7 @@ export async function GET() {
     cancel() {
       if (pingInterval) clearInterval(pingInterval)
       if (panelInterval) clearInterval(panelInterval)
+      if (agentStatusInterval) clearInterval(agentStatusInterval)
     },
   })
 

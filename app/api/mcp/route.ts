@@ -110,10 +110,10 @@ function handleToolsList(id: string | number | null): JsonRpcSuccess {
   return ok(id, { tools: [PROMPT_SHIELD_TOOL] })
 }
 
-function handleToolsCall(
+async function handleToolsCall(
   id: string | number | null,
   params: unknown
-): JsonRpcSuccess | JsonRpcError {
+): Promise<JsonRpcSuccess | JsonRpcError> {
   if (typeof params !== 'object' || params === null) {
     return err(id, RPC_INVALID_PARAMS, 'params must be an object')
   }
@@ -143,20 +143,63 @@ function handleToolsCall(
       ? (args.mode as InputMode)
       : 'auto'
 
+  // ── Call PromptDome API (single engine, single source of truth) ───────────
+  const PROMPTDOME_URL = process.env.PROMPTDOME_URL ?? 'https://promptdome.cyberforge.one/api/v1/shield'
+  const PROMPTDOME_KEY = process.env.PROMPTDOME_API_KEY ?? ''
+
   let result: AnalysisResult
   const t0 = Date.now()
   try {
-    result = analyzeText(text, profile, undefined, inputMode)
+    const pdRes = await fetch(PROMPTDOME_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${PROMPTDOME_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text,
+        mode: inputMode,
+        source: source ?? 'mcp',  // tag all MCP scans so they're distinguishable in dashboard
+      }),
+    })
+    if (!pdRes.ok) throw new Error(`PromptDome API error: ${pdRes.status}`)
+    const pdData = await pdRes.json() as {
+      score: number; level: string; recommendation: string; findings: unknown[];
+      processingNotes: string[]; evasionDetected: boolean; charCount: number;
+      engineVersion: string; durationMs: number; fastPath?: boolean; profile?: string;
+      pii?: { detected: boolean; types: string[] }; mode?: string; attackSurface?: string;
+    }
+    // Map PromptDome response to AnalysisResult shape expected by the MCP response formatter
+    result = {
+      score: pdData.score,
+      level: pdData.level as AnalysisResult['level'],
+      recommendation: pdData.recommendation as AnalysisResult['recommendation'],
+      findings: pdData.findings as AnalysisResult['findings'],
+      processingNotes: pdData.processingNotes ?? [],
+      evasionDetected: pdData.evasionDetected ?? false,
+      charCount: pdData.charCount,
+      engineVersion: pdData.engineVersion,
+      fastPath: pdData.fastPath ?? false,
+      profile: (pdData.profile ?? profile) as ContextProfile,
+      processedText: text,
+      pii: pdData.pii as AnalysisResult['pii'] ?? { detected: false, types: [], exfilInstruction: false },
+      mode: (pdData.mode ?? inputMode) as InputMode,
+      attackSurface: (pdData.attackSurface ?? 'unknown') as AnalysisResult['attackSurface'],
+      density: 0,
+      timestamp: new Date().toISOString(),
+    }
   } catch (e) {
-    return err(id, -32000, 'Analysis failed', String(e))
+    // Fallback to local engine if PromptDome is unreachable
+    console.warn('[mcp] PromptDome API unreachable, falling back to local engine:', String(e))
+    try {
+      result = analyzeText(text, profile, undefined, inputMode)
+      // Log fallback scan locally
+      logShieldScan(result, { consumer: 'mcp', source: source ?? undefined, durationMs: Date.now() - t0 }).catch(() => {})
+    } catch (e2) {
+      return err(id, -32000, 'Analysis failed', String(e2))
+    }
   }
   const durationMs = Date.now() - t0
-  // Fire-and-forget logging (don't await — keep response fast)
-  logShieldScan(result, {
-    consumer: 'mcp',
-    source: source ?? undefined,
-    durationMs,
-  }).catch(() => {})
 
   // Format a human-readable summary for the AI to act on
   const topFindings = result.findings.slice(0, 3).map(f =>
@@ -253,7 +296,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json(handleToolsList(id))
 
     case 'tools/call':
-      return NextResponse.json(handleToolsCall(id, rpc.params))
+      return NextResponse.json(await handleToolsCall(id, rpc.params))
 
     default:
       return NextResponse.json(

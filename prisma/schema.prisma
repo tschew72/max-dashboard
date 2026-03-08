@@ -104,19 +104,4 @@ model TaskTag {
   @@id([taskId, tagId])
 }
 
-model ShieldLog {
-  id              String   @id @default(cuid())
-  createdAt       DateTime @default(now())
-  source          String?
-  consumer        String   @default("unknown")
-  textPreview     String
-  score           Int
-  level           String
-  recommendation  String
-  findingsJson    String
-  processingNotes String[]
-  evasionDetected Boolean  @default(false)
-  charCount       Int
-  engineVersion   String
-  durationMs      Int?
-}
+// ShieldLog model removed — scan data now lives in PromptDome (ingestshield DB)
