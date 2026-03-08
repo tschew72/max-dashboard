@@ -5,8 +5,6 @@ import {
   ReactFlowProvider,
   Controls,
   MiniMap,
-  Background,
-  BackgroundVariant,
   useNodesState,
   useEdgesState,
 } from '@xyflow/react'
@@ -35,29 +33,23 @@ type FlowEdge = {
   style?: React.CSSProperties
 }
 
-// Node types registration
 const nodeTypes = { agentNode: AgentNodeComponent }
 const edgeTypes = { agentEdge: AgentEdgeComponent }
 
-// Fixed hierarchical layout positions
 const LAYOUT: Record<string, { x: number; y: number }> = {
   main:       { x: 360, y: 0 },
-  // Row 2
   ba:         { x: 180, y: 150 },
   researcher: { x: 360, y: 150 },
   sales:      { x: 540, y: 150 },
-  // Row 3
   dev:        { x: 90,  y: 300 },
   ux:         { x: 270, y: 300 },
   devops:     { x: 450, y: 300 },
   cfo:        { x: 630, y: 300 },
-  // Row 4
   qa:         { x: 0,   y: 450 },
   writer:     { x: 180, y: 450 },
   ciso:       { x: 360, y: 450 },
   ops:        { x: 540, y: 450 },
   marketing:  { x: 720, y: 450 },
-  // Row 5 (extended team)
   webdev:     { x: 900, y: 300 },
 }
 
@@ -65,7 +57,7 @@ function statusColor(status: string | undefined): string {
   if (status === 'running') return '#7c3aed'
   if (status === 'done') return '#22c55e'
   if (status === 'error') return '#ef4444'
-  return '#2a2a2a'
+  return '#1e1e2e'
 }
 
 function FlowCanvas() {
@@ -75,6 +67,10 @@ function FlowCanvas() {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>([])
   const fetchRef = useRef(false)
+  const nodesRef = useRef(nodes)
+
+  // Keep nodesRef in sync for use inside SSE handler
+  useEffect(() => { nodesRef.current = nodes }, [nodes])
 
   const fetchData = useCallback(async () => {
     try {
@@ -96,32 +92,55 @@ function FlowCanvas() {
     }
   }, [fetchData])
 
-  // Auto-refresh every 15s
-  useEffect(() => {
-    const interval = setInterval(fetchData, 15000)
-    return () => clearInterval(interval)
-  }, [fetchData])
-
-  // SSE subscription for real-time updates
+  // SSE subscription for real-time status updates (replaces 15s poll)
   useEffect(() => {
     let es: EventSource | null = null
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 
     function connect() {
-      es = new EventSource('/api/dashboard/stream')
+      es = new EventSource('/api/flow/stream')
+
       es.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data)
-          if (msg.type === 'agent-status' || msg.type === 'agents') {
-            fetchData()
+          if (msg.type === 'agent-status') {
+            // Update just that one node's status — instant, no full refetch
+            setNodes(prev => prev.map(node => {
+              if (node.id !== msg.agentId) return node
+              return {
+                ...node,
+                data: { ...node.data, status: msg.status },
+              }
+            }))
+
+            // Update edges: edge is active when BOTH endpoints are running
+            setEdges(prev => prev.map(edge => {
+              if (edge.source !== msg.agentId && edge.target !== msg.agentId) return edge
+              const currentNodes = nodesRef.current
+              const sourceNode = currentNodes.find(n => n.id === edge.source)
+              const targetNode = currentNodes.find(n => n.id === edge.target)
+              const sourceRunning = edge.source === msg.agentId
+                ? msg.status === 'running'
+                : (sourceNode?.data as Record<string, unknown>)?.status === 'running'
+              const targetRunning = edge.target === msg.agentId
+                ? msg.status === 'running'
+                : (targetNode?.data as Record<string, unknown>)?.status === 'running'
+              return {
+                ...edge,
+                data: { ...edge.data, active: sourceRunning && targetRunning },
+              }
+            }))
           }
-        } catch {
-          /* ignore */
-        }
+        } catch { /* ignore parse errors */ }
       }
+
       es.onerror = () => {
         es?.close()
-        reconnectTimeout = setTimeout(connect, 5000)
+        // SSE dropped — fall back to single refetch after 5s, then reconnect
+        reconnectTimeout = setTimeout(() => {
+          fetchData()
+          connect()
+        }, 5000)
       }
     }
 
@@ -130,9 +149,14 @@ function FlowCanvas() {
       es?.close()
       if (reconnectTimeout) clearTimeout(reconnectTimeout)
     }
+  }, [fetchData, setNodes, setEdges])
+
+  // 30s fallback poll (reduced from 15s — SSE handles real-time)
+  useEffect(() => {
+    const interval = setInterval(fetchData, 30_000)
+    return () => clearInterval(interval)
   }, [fetchData])
 
-  // Get selected chain step agent IDs
   const highlightedAgents = useMemo(() => {
     if (!selectedChainId || !flowData) return new Set<string>()
     const chain = flowData.chains.find(c => c.id === selectedChainId)
@@ -140,7 +164,6 @@ function FlowCanvas() {
     return new Set(chain.steps.map(s => s.agentId))
   }, [selectedChainId, flowData])
 
-  // Convert data to React Flow nodes
   useEffect(() => {
     if (!flowData) return
 
@@ -196,8 +219,37 @@ function FlowCanvas() {
 
   return (
     <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Canvas area */}
       <div style={{ flex: 1, position: 'relative', minHeight: 600 }}>
+        {/* Corner ambient glows */}
+        <div
+          style={{
+            position: 'absolute',
+            top: -50,
+            left: -50,
+            width: 300,
+            height: 300,
+            background: 'rgba(124,58,237,0.08)',
+            borderRadius: '50%',
+            filter: 'blur(80px)',
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: -80,
+            right: -80,
+            width: 400,
+            height: 400,
+            background: 'rgba(59,130,246,0.05)',
+            borderRadius: '50%',
+            filter: 'blur(100px)',
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
+
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -213,71 +265,79 @@ function FlowCanvas() {
           nodesConnectable={false}
           elementsSelectable={true}
           style={{
-            backgroundColor: '#0a0a0f',
+            backgroundColor: '#0a0a12',
+            backgroundImage: [
+              'radial-gradient(circle at 50% 50%, rgba(124,58,237,0.03) 0%, transparent 60%)',
+              'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px)',
+              'linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
+            ].join(', '),
+            backgroundSize: '100% 100%, 40px 40px, 40px 40px',
           }}
         >
-          <Background
-            variant={BackgroundVariant.Dots}
-            gap={24}
-            size={1}
-            color="#2a2a2a"
-          />
           <MiniMap
             style={{
-              background: '#1a1a1a',
-              border: '1px solid #2a2a2a',
+              background: '#0d0d1a',
+              border: '1px solid rgba(255,255,255,0.06)',
               borderRadius: 8,
             }}
             nodeColor={(n) => statusColor((n.data as Record<string, unknown> | undefined)?.status as string | undefined)}
-            maskColor="rgba(0,0,0,0.6)"
+            maskColor="rgba(10,10,18,0.85)"
           />
           <Controls
             showInteractive={false}
             style={{
-              background: 'var(--card)',
-              border: '1px solid var(--border)',
+              background: 'rgba(13,13,26,0.8)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255,255,255,0.06)',
               borderRadius: 8,
             }}
           />
 
-          {/* Status Legend */}
+          {/* Status Legend — glass card, bottom-left */}
           <div
             style={{
               position: 'absolute',
               bottom: 16,
               left: 16,
-              background: 'rgba(26, 26, 26, 0.8)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid #2a2a2a',
-              borderRadius: 8,
-              padding: '8px 12px',
+              background: 'rgba(13,13,26,0.7)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 10,
+              padding: '10px 14px',
               display: 'flex',
-              gap: 12,
+              flexDirection: 'column',
+              gap: 6,
               zIndex: 10,
             }}
           >
             {[
-              { label: 'Idle', color: '#888' },
+              { label: 'Idle', color: '#6b7280' },
               { label: 'Running', color: '#7c3aed' },
               { label: 'Done', color: '#22c55e' },
               { label: 'Error', color: '#ef4444' },
             ].map(s => (
-              <span key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--muted)' }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color }} />
+              <span key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#94a3b8' }}>
+                <span style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: s.color,
+                  boxShadow: `0 0 6px ${s.color}`,
+                  flexShrink: 0,
+                }} />
                 {s.label}
               </span>
             ))}
           </div>
         </ReactFlow>
 
-        {/* Detail panel */}
         <AgentDetailPanel
           agent={selectedAgent}
           onClose={() => setSelectedAgent(null)}
         />
       </div>
 
-      {/* Timeline panel */}
       <WorkflowTimeline
         chains={flowData?.chains || []}
         selectedChainId={selectedChainId}

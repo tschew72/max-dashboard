@@ -204,12 +204,27 @@ body {
 }
 
 /* ─── Agent Flow Animations ───────────────────────────────────────── */
-@keyframes agent-pulse { 0%,100%{opacity:.4} 50%{opacity:.8} }
-@keyframes agent-ring { to{transform:rotate(360deg)} }
+/* === Flow Visualizer Premium Animations === */
+@keyframes agent-ripple {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+@keyframes agent-ring-1 { to { transform: rotate(360deg); } }
+@keyframes agent-ring-2 { to { transform: rotate(-360deg); } }
+@keyframes agent-ring-3 { to { transform: rotate(360deg); } }
 @keyframes agent-done { 0%,70%{opacity:1} 100%{opacity:0} }
-@keyframes agent-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(4px)} 75%{transform:translateX(-4px)} }
-@keyframes edge-march { to{stroke-dashoffset:0} }
-@keyframes particle-travel { from{offset-distance:0%} to{offset-distance:100%} }
+@keyframes edge-particle {
+  from { offset-distance: 0%; }
+  to   { offset-distance: 100%; }
+}
+@keyframes draw-check {
+  from { stroke-dashoffset: 100; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
 
 /* Agent node hover */
 .agent-node:hover {

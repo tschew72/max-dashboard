@@ -63,10 +63,6 @@ function getAgentIds(): string[] {
 
 interface SessionData {
   updatedAt: number
-  model?: string | null
-  totalTokens?: number
-  inputTokens?: number
-  outputTokens?: number
 }
 
 function getAgentSessions(agentId: string): Record<string, SessionData> {
@@ -78,7 +74,14 @@ function getAgentSessions(agentId: string): Record<string, SessionData> {
   }
 }
 
-interface RunRecord {
+interface RecentRun {
+  runAt: string
+  status: string
+  durationMs: number
+  costUsd: number
+}
+
+interface CronRunRecord {
   action?: string
   status?: string
   runAtMs?: number
@@ -90,151 +93,145 @@ interface RunRecord {
   summary?: string | null
 }
 
-function getJobRuns(): Array<{
-  jobId: string
-  status: string
-  runAtMs: number
-  durationMs: number
-  model: string | null
-  costUsd: number
-  tokens: number
-  sessionId: string | null
-}> {
-  const runs: Array<{
-    jobId: string
-    status: string
-    runAtMs: number
-    durationMs: number
-    model: string | null
-    costUsd: number
-    tokens: number
-    sessionId: string | null
-  }> = []
+// ── Agent runs ──────────────────────────────────────────────
+// Main agent: read cron/runs JSONL files
+// Other agents: read sessions.json (each entry = one subagent dispatch)
+function getAgentRuns(agentId: string): { runs: RecentRun[]; totalCost7d: number; runsToday: number; lastRunAt: string | null } {
+  const now = Date.now()
+  const sevenDaysAgo = now - 7 * 24 * 3600 * 1000
+  const todayStart = new Date().setHours(0, 0, 0, 0)
+
+  if (agentId === 'main') {
+    return getMainAgentRuns(sevenDaysAgo, todayStart)
+  }
+
+  // Subagent: read sessions.json
+  const sessions = getAgentSessions(agentId)
+  const entries = Object.values(sessions)
+    .map(s => s.updatedAt)
+    .filter(t => t > 0)
+    .sort((a, b) => b - a)
+
+  const runs: RecentRun[] = entries.slice(0, 10).map(t => ({
+    runAt: new Date(t).toISOString(),
+    status: 'success',
+    durationMs: 0,
+    costUsd: 0,
+  }))
+
+  const runsToday = entries.filter(t => t > todayStart).length
+  const lastRunAt = entries.length > 0 ? new Date(entries[0]).toISOString() : null
+
+  return { runs, totalCost7d: 0, runsToday, lastRunAt }
+}
+
+function getMainAgentRuns(sevenDaysAgo: number, todayStart: number): { runs: RecentRun[]; totalCost7d: number; runsToday: number; lastRunAt: string | null } {
+  const allRuns: Array<{ runAtMs: number; status: string; durationMs: number; costUsd: number; tokens: number }> = []
 
   try {
     const files = fs.readdirSync(RUNS_DIR).filter(f => f.endsWith('.jsonl'))
     for (const file of files) {
-      const jobId = file.replace('.jsonl', '')
       try {
         const lines = fs.readFileSync(path.join(RUNS_DIR, file), 'utf-8').split('\n').filter(Boolean)
         for (const line of lines) {
           try {
-            const run: RunRecord = JSON.parse(line)
+            const run: CronRunRecord = JSON.parse(line)
             if (run.action !== 'finished') continue
             const costUsd = calcCost(run.model || null, run.usage || null)
-            runs.push({
-              jobId,
-              status: run.status || 'unknown',
+            allRuns.push({
               runAtMs: run.runAtMs || run.ts || 0,
+              status: run.status || 'unknown',
               durationMs: run.durationMs || 0,
-              model: run.model || null,
               costUsd,
               tokens: run.usage?.total_tokens || 0,
-              sessionId: run.sessionId || null,
             })
-          } catch { /* skip */ }
+          } catch { /* skip bad line */ }
         }
-      } catch { /* skip */ }
+      } catch { /* skip bad file */ }
     }
-  } catch { /* skip */ }
+  } catch { /* no runs dir */ }
 
-  return runs.sort((a, b) => b.runAtMs - a.runAtMs)
+  allRuns.sort((a, b) => b.runAtMs - a.runAtMs)
+
+  const runs: RecentRun[] = allRuns.slice(0, 10).map(r => ({
+    runAt: new Date(r.runAtMs).toISOString(),
+    status: r.status,
+    durationMs: r.durationMs,
+    costUsd: r.costUsd,
+  }))
+
+  const runs7d = allRuns.filter(r => r.runAtMs > sevenDaysAgo)
+  const totalCost7d = runs7d.reduce((s, r) => s + r.costUsd, 0)
+  const runsToday = allRuns.filter(r => r.runAtMs > todayStart).length
+  const lastRunAt = allRuns.length > 0 ? new Date(allRuns[0].runAtMs).toISOString() : null
+
+  return { runs, totalCost7d, runsToday, lastRunAt }
 }
 
-function getJobNames(): Record<string, string> {
+// ── Agent status ────────────────────────────────────────────
+// Use JSONL file mtime for accurate real-time detection
+function isAgentActive(agentId: string): boolean {
+  const dir = path.join(AGENTS_DIR, agentId, 'sessions')
   try {
-    const data = JSON.parse(fs.readFileSync(JOBS_FILE, 'utf-8'))
-    const map: Record<string, string> = {}
-    for (const job of data.jobs || []) map[job.id] = job.name
-    return map
+    const files = fs.readdirSync(dir).filter(f => f.endsWith('.jsonl'))
+    return files.some(f => {
+      const stat = fs.statSync(path.join(dir, f))
+      return Date.now() - stat.mtimeMs < 90_000
+    })
   } catch {
-    return {}
+    return false
   }
 }
 
-// Derive agent status from sessions
 function getAgentStatus(agentId: string): { status: 'idle' | 'running' | 'done' | 'error'; lastUpdated: number } {
-  const sessions = getAgentSessions(agentId)
-  let latestUpdate = 0
-  const now = Date.now()
-  const fiveMinAgo = now - 5 * 60 * 1000
+  const dir = path.join(AGENTS_DIR, agentId, 'sessions')
+  try {
+    const files = fs.readdirSync(dir).filter(f => f.endsWith('.jsonl'))
+    if (!files.length) return { status: 'idle', lastUpdated: 0 }
 
-  for (const sess of Object.values(sessions)) {
-    if (sess.updatedAt > latestUpdate) latestUpdate = sess.updatedAt
-  }
+    const mtimes = files.map(f => fs.statSync(path.join(dir, f)).mtimeMs)
+    const latest = Math.max(...mtimes)
+    const now = Date.now()
 
-  // Active in last 2 minutes = running
-  if (latestUpdate > now - 2 * 60 * 1000) {
-    return { status: 'running', lastUpdated: latestUpdate }
+    if (latest > now - 90_000) return { status: 'running', lastUpdated: latest }
+    if (latest > now - 300_000) return { status: 'done', lastUpdated: latest }
+    return { status: 'idle', lastUpdated: latest }
+  } catch {
+    return { status: 'idle', lastUpdated: 0 }
   }
-  // Active in last 5 minutes = done (recently completed)
-  if (latestUpdate > fiveMinAgo) {
-    return { status: 'done', lastUpdated: latestUpdate }
-  }
-  return { status: 'idle', lastUpdated: latestUpdate }
 }
 
-// Build edge data from session keys (subagent patterns)
+// ── Edges ───────────────────────────────────────────────────
 function buildEdges(agentIds: string[]): Array<{
   source: string
   target: string
   count: number
   lastAt: string | null
+  active: boolean
 }> {
+  // Build activity counts from session data
   const edgeMap = new Map<string, { count: number; lastAt: number }>()
 
   for (const agentId of agentIds) {
-    const sessions = getAgentSessions(agentId)
-    for (const [sessionKey, sess] of Object.entries(sessions)) {
-      // Pattern: agent:<spawner>:subagent:<uuid> in <target>'s sessions means <spawner> spawned <target>
-      // But actually session keys in each agent's folder indicate who spawned them
-      // Session key format: agent:<agentId>:subagent:<uuid>
-      const subagentMatch = sessionKey.match(/^agent:(\w+):subagent:/)
-      if (subagentMatch) {
-        const spawnerInKey = subagentMatch[1]
-        // If this session is in agentId's folder but the key says it's for spawnerInKey,
-        // that means spawnerInKey spawned agentId
-        if (spawnerInKey === agentId) {
-          // This is a subagent session of agentId itself - agentId spawned a sub-task
-          // The "main" agent often spawns other agents
-          // We can't determine the target from just the key
-          continue
-        }
-      }
-    }
-  }
-
-  // Alternative: look at main's sessions for subagent spawns → each agent
-  // Main spawns all agents, agents spawn sub-tasks
-  // Build known spawn relationships from session presence
-  for (const agentId of agentIds) {
     if (agentId === 'main') continue
     const sessions = getAgentSessions(agentId)
-    const hasActivity = Object.keys(sessions).length > 0
-    if (hasActivity) {
-      // main → agentId edge
-      const key = `main→${agentId}`
+    const sessionCount = Object.keys(sessions).length
+    if (sessionCount > 0) {
       let lastAt = 0
       for (const sess of Object.values(sessions)) {
         if (sess.updatedAt > lastAt) lastAt = sess.updatedAt
       }
-      edgeMap.set(key, {
-        count: Object.keys(sessions).length,
-        lastAt,
-      })
-    }
-
-    // Check for subagent sessions within this agent (agent spawning sub-tasks)
-    for (const sessionKey of Object.keys(sessions)) {
-      if (sessionKey.includes(':subagent:')) {
-        // This agent has subagent sessions
-        // e.g. agent:dev:subagent:xxx means dev spawned a sub-task
-        // Without more data, we track self-spawning sub-tasks
-      }
+      edgeMap.set(`main→${agentId}`, { count: sessionCount, lastAt })
     }
   }
 
-  // Known workflow relationships from Bea's spec
+  // Pre-compute active status for all agents
+  const activeMap = new Map<string, boolean>()
+  for (const id of agentIds) {
+    activeMap.set(id, isAgentActive(id))
+  }
+
+  // Known workflow relationships
   const knownEdges: Array<{ source: string; target: string }> = [
     { source: 'main', target: 'ba' },
     { source: 'main', target: 'dev' },
@@ -248,58 +245,60 @@ function buildEdges(agentIds: string[]): Array<{
     { source: 'main', target: 'ciso' },
     { source: 'main', target: 'ops' },
     { source: 'main', target: 'marketing' },
+    { source: 'main', target: 'webdev' },
     { source: 'ba', target: 'dev' },
     { source: 'ba', target: 'ux' },
     { source: 'dev', target: 'qa' },
     { source: 'devops', target: 'dev' },
   ]
 
-  const edges: Array<{ source: string; target: string; count: number; lastAt: string | null }> = []
+  const edges: Array<{ source: string; target: string; count: number; lastAt: string | null; active: boolean }> = []
 
   for (const { source, target } of knownEdges) {
     const key = `${source}→${target}`
     const existing = edgeMap.get(key)
+    const isSourceRunning = activeMap.get(source) || false
+    const isTargetRunning = activeMap.get(target) || false
+
     edges.push({
       source,
       target,
-      count: existing?.count || 1,
+      count: existing?.count || 0,
       lastAt: existing?.lastAt ? new Date(existing.lastAt).toISOString() : null,
+      active: isSourceRunning && isTargetRunning,
     })
   }
 
   return edges
 }
 
-// Build workflow chains from recent session activity
+// ── Workflow chains ─────────────────────────────────────────
 function buildChains(agentIds: string[]): Array<{
   id: string
   steps: Array<{ agentId: string; status: string; startAt: string; durationMs: number }>
   startAt: string
   status: 'success' | 'failed' | 'running'
 }> {
-  // Group recent activity into chains based on temporal proximity
   interface ActivityEntry {
     agentId: string
-    sessionKey: string
     updatedAt: number
   }
 
   const activities: ActivityEntry[] = []
   const now = Date.now()
-  const cutoff = now - 24 * 3600 * 1000 // last 24h
+  const cutoff = now - 24 * 3600 * 1000
 
   for (const agentId of agentIds) {
     const sessions = getAgentSessions(agentId)
-    for (const [sessionKey, sess] of Object.entries(sessions)) {
+    for (const sess of Object.values(sessions)) {
       if (sess.updatedAt > cutoff) {
-        activities.push({ agentId, sessionKey, updatedAt: sess.updatedAt })
+        activities.push({ agentId, updatedAt: sess.updatedAt })
       }
     }
   }
 
   activities.sort((a, b) => a.updatedAt - b.updatedAt)
 
-  // Cluster activities within 10-minute windows into chains
   const chains: Array<{
     id: string
     steps: Array<{ agentId: string; status: string; startAt: string; durationMs: number }>
@@ -308,40 +307,12 @@ function buildChains(agentIds: string[]): Array<{
   }> = []
 
   let currentChain: ActivityEntry[] = []
-  for (const activity of activities) {
-    if (currentChain.length === 0 || activity.updatedAt - currentChain[currentChain.length - 1].updatedAt < 10 * 60 * 1000) {
-      currentChain.push(activity)
-    } else {
-      if (currentChain.length >= 2) {
-        // Deduplicate by agentId, keep latest
-        const seen = new Map<string, ActivityEntry>()
-        for (const a of currentChain) seen.set(a.agentId, a)
-        const deduped = Array.from(seen.values()).sort((a, b) => a.updatedAt - b.updatedAt)
 
-        const chainStart = deduped[0].updatedAt
-        const isRunning = deduped.some(a => a.updatedAt > now - 2 * 60 * 1000)
-        chains.push({
-          id: `chain-${chainStart}`,
-          steps: deduped.map(a => ({
-            agentId: a.agentId,
-            status: a.updatedAt > now - 2 * 60 * 1000 ? 'running' : 'done',
-            startAt: new Date(a.updatedAt).toISOString(),
-            durationMs: 0,
-          })),
-          startAt: new Date(chainStart).toISOString(),
-          status: isRunning ? 'running' : 'success',
-        })
-      }
-      currentChain = [activity]
-    }
-  }
-
-  // Process last chain
-  if (currentChain.length >= 2) {
+  const flushChain = () => {
+    if (currentChain.length < 2) return
     const seen = new Map<string, ActivityEntry>()
     for (const a of currentChain) seen.set(a.agentId, a)
     const deduped = Array.from(seen.values()).sort((a, b) => a.updatedAt - b.updatedAt)
-
     const chainStart = deduped[0].updatedAt
     const isRunning = deduped.some(a => a.updatedAt > now - 2 * 60 * 1000)
     chains.push({
@@ -357,43 +328,28 @@ function buildChains(agentIds: string[]): Array<{
     })
   }
 
-  // Return last 10 chains, most recent first
+  for (const activity of activities) {
+    if (currentChain.length === 0 || activity.updatedAt - currentChain[currentChain.length - 1].updatedAt < 10 * 60 * 1000) {
+      currentChain.push(activity)
+    } else {
+      flushChain()
+      currentChain = [activity]
+    }
+  }
+  flushChain()
+
   return chains.slice(-10).reverse()
 }
 
+// ── GET handler ─────────────────────────────────────────────
 export async function GET() {
   const agentIds = getAgentIds()
-  const jobRuns = getJobRuns()
-  const jobNames = getJobNames()
-  const now = Date.now()
-  const sevenDaysAgo = now - 7 * 24 * 3600 * 1000
-  const todayStart = new Date().setHours(0, 0, 0, 0)
 
   const agents = agentIds.map(id => {
     const meta = AGENT_META[id] || { name: id, emoji: '🤖', role: 'Agent' }
     const model = getAgentModel(id)
     const { status } = getAgentStatus(id)
-
-    // Find runs associated with this agent
-    // Job names often contain agent name references
-    const agentRuns = jobRuns.filter(r => {
-      const name = (jobNames[r.jobId] || '').toLowerCase()
-      return name.includes(id) || r.sessionId?.includes(`agent:${id}`)
-    })
-
-    const recentRuns = agentRuns.slice(0, 5).map(r => ({
-      runAt: new Date(r.runAtMs).toISOString(),
-      status: r.status,
-      durationMs: r.durationMs,
-      costUsd: r.costUsd,
-    }))
-
-    const runs7d = agentRuns.filter(r => r.runAtMs > sevenDaysAgo)
-    const totalCost7d = runs7d.reduce((s, r) => s + r.costUsd, 0)
-    const totalTokens7d = runs7d.reduce((s, r) => s + r.tokens, 0)
-    const runsToday = agentRuns.filter(r => r.runAtMs > todayStart).length
-
-    const lastRun = agentRuns[0]
+    const { runs, totalCost7d, runsToday, lastRunAt } = getAgentRuns(id)
 
     return {
       id,
@@ -402,12 +358,12 @@ export async function GET() {
       role: meta.role,
       model: model.replace('anthropic/', ''),
       status,
-      lastRunAt: lastRun ? new Date(lastRun.runAtMs).toISOString() : null,
-      lastRunStatus: lastRun?.status || null,
-      lastRunDurationMs: lastRun?.durationMs || null,
-      recentRuns,
+      lastRunAt,
+      lastRunStatus: runs.length > 0 ? runs[0].status : null,
+      lastRunDurationMs: runs.length > 0 ? runs[0].durationMs : null,
+      recentRuns: runs.slice(0, 5),
       totalCost7d,
-      totalTokens7d,
+      totalTokens7d: 0,
       runsToday,
     }
   })
