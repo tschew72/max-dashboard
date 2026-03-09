@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { X } from 'lucide-react'
 import type { AgentNodeData, AgentStatus } from './types'
 
@@ -34,6 +34,59 @@ function timeAgo(dateStr: string): string {
   if (s < 3600) return `${Math.floor(s / 60)}m ago`
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`
   return `${Math.floor(s / 86400)}d ago`
+}
+
+function StopButton({ agentId, agentName }: { agentId: string; agentName: string }) {
+  const [stopping, setStopping] = useState(false)
+  const [stopError, setStopError] = useState<string | null>(null)
+  const [stopped, setStopped] = useState(false)
+
+  async function handleStop() {
+    if (!confirm(`⛔ Stop agent "${agentName}"? This will abort the current session.`)) return
+    setStopping(true)
+    setStopError(null)
+    try {
+      const res = await fetch(`/api/agents/${agentId}/stop`, { method: 'POST' })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Stop failed')
+      setStopped(true)
+    } catch (err: any) {
+      setStopError(err.message)
+    } finally {
+      setStopping(false)
+    }
+  }
+
+  if (stopped) return null
+
+  return (
+    <div>
+      <button
+        onClick={handleStop}
+        disabled={stopping}
+        style={{
+          width: '100%',
+          padding: 10,
+          background: '#dc2626',
+          color: 'white',
+          border: 'none',
+          borderRadius: 8,
+          fontSize: 14,
+          fontWeight: 600,
+          cursor: stopping ? 'wait' : 'pointer',
+          opacity: stopping ? 0.7 : 1,
+          transition: 'background 0.15s',
+        }}
+        onMouseEnter={e => { if (!stopping) e.currentTarget.style.background = '#b91c1c' }}
+        onMouseLeave={e => { e.currentTarget.style.background = '#dc2626' }}
+      >
+        {stopping ? '⏳ Stopping…' : '⛔ Stop Agent'}
+      </button>
+      {stopError && (
+        <p style={{ color: '#f87171', fontSize: 11, marginTop: 4, textAlign: 'center' }}>{stopError}</p>
+      )}
+    </div>
+  )
 }
 
 export default function AgentDetailPanel({
@@ -205,6 +258,11 @@ export default function AgentDetailPanel({
               </div>
             </div>
           </div>
+
+          {/* Emergency Stop button — only when running */}
+          {agent.status === 'running' && (
+            <StopButton agentId={agent.id} agentName={agent.name} />
+          )}
 
           {/* Spawn button */}
           <button

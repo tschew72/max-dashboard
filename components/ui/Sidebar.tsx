@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import {
   Home, CheckSquare, Calendar, Monitor, Settings,
   Briefcase, Bot, BarChart2, MessageCircle, Brain, Shield,
-  ChevronLeft, ChevronRight, Activity, GitBranch,
+  ChevronLeft, ChevronRight, Activity, GitBranch, Eye,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: '/activity', icon: Activity, label: 'Activity' },
   { href: '/analytics', icon: BarChart2, label: 'Analytics' },
   { href: '/comms', icon: MessageCircle, label: 'Comms' },
+  { href: '/thoughts', icon: Eye, label: 'Thoughts' },
   { href: '/brain', icon: Brain, label: 'Brain' },
   { href: '/shield', icon: Shield, label: 'Shield' },
   { href: '/system', icon: Monitor, label: 'System' },

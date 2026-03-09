@@ -16,6 +16,9 @@ import InfraHealthPanel from '@/components/dashboard/InfraHealthPanel'
 import AgentActivityPanel from '@/components/dashboard/AgentActivityPanel'
 import ExamAlertBanner from '@/components/dashboard/ExamAlertBanner'
 import { AGENT_MAP } from '@/lib/agents'
+import SystemMetricsBar from '@/components/dashboard/SystemMetricsBar'
+import TokenEconomyPanel from '@/components/dashboard/TokenEconomyPanel'
+import ThoughtsFeed from '@/components/thoughts/ThoughtsFeed'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Task {
@@ -611,6 +614,9 @@ export default function HomePage() {
 
       <div className="px-4 pt-4 space-y-4">
 
+        {/* ── 0. System Metrics Bar (WI-103) ── */}
+        <SystemMetricsBar />
+
         {/* ── 1. Security Alerts (conditional) ── */}
         <SecurityAlertsWidget onSSERefresh={sseRefresh.security} />
 
@@ -842,7 +848,13 @@ export default function HomePage() {
           <GmailInboxPanel onSSERefresh={sseRefresh.gmail} />
         </div>
 
-        {/* ── 7. Infrastructure (collapsible) ── */}
+        {/* ── 7. Token Economy + Live Thoughts (WI-100, WI-102) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <TokenEconomyPanel />
+          <ThoughtsFeed agent="main" maxLines={20} compact />
+        </div>
+
+        {/* ── 8. Infrastructure (collapsible) ── */}
         <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
           <button
             onClick={() => setInfraCollapsed(!infraCollapsed)}

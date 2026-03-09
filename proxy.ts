@@ -15,7 +15,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/shield') ||
     pathname.startsWith('/api/mcp') ||   // MCP server — handles its own auth via Bearer token
-    pathname.startsWith('/api/flow/stream')  // SSE stream — browser EventSource can't send cookies cross-redirect
+    pathname.startsWith('/api/flow/stream') ||  // SSE stream — browser EventSource can't send cookies cross-redirect
+    pathname.startsWith('/api/thoughts/stream')  // SSE thoughts stream — same reason
   ) {
     return NextResponse.next()
   }
