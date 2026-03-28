@@ -50,6 +50,14 @@ enum Assignee {
   MAX
   VINCE
   BOTH
+  DEV
+  BEA
+  QUINN
+  ALEX
+  DEX
+  UMI
+  MAYA
+  SAM
 }
 
 enum Label {
