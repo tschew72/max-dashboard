@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 
-function safeExec(cmd: string): string {
+function safeExecFile(file: string, args: string[]): string {
   try {
-    return execSync(cmd, { timeout: 5000, encoding: 'utf8' }).toString()
+    return execFileSync(file, args, { timeout: 5000, encoding: 'utf8' }).toString()
   } catch {
     return ''
   }
@@ -45,8 +45,11 @@ function parseDisk(output: string) {
 }
 
 function getOpenClawVersion(): { current: string; latest: string; upToDate: boolean } {
-  const current = safeExec('openclaw --version').trim()
-  const latest = safeExec('npm info openclaw version 2>/dev/null || pnpm info openclaw version 2>/dev/null').trim()
+  const current = safeExecFile('openclaw', ['--version']).trim()
+  let latest = safeExecFile('npm', ['info', 'openclaw', 'version']).trim()
+  if (!latest) {
+    latest = safeExecFile('pnpm', ['info', 'openclaw', 'version']).trim()
+  }
   const upToDate = !!current && !!latest && current === latest
   return { current: current || 'unknown', latest: latest || 'unknown', upToDate }
 }
@@ -78,9 +81,9 @@ function getJobsHealth() {
 }
 
 export async function GET() {
-  const gatewayOutput = safeExec('openclaw gateway status')
-  const memOutput = safeExec('free -m')
-  const diskOutput = safeExec('df -h /')
+  const gatewayOutput = safeExecFile('openclaw', ['gateway', 'status'])
+  const memOutput = safeExecFile('free', ['-m'])
+  const diskOutput = safeExecFile('df', ['-h', '/'])
 
   const gateway = parseGatewayStatus(gatewayOutput)
   const memory = parseMemory(memOutput)

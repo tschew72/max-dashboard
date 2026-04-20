@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { readFileSync } from 'fs'
 
-function safeExec(cmd: string): string {
-  try { return execSync(cmd, { timeout: 5000, encoding: 'utf8' }) } catch { return '' }
+function safeExecFile(file: string, args: string[]): string {
+  try { return execFileSync(file, args, { timeout: 5000, encoding: 'utf8' }).toString() } catch { return '' }
 }
 
 // ─── Cron expression → human readable ────────────────────────────────────────
@@ -82,24 +82,33 @@ function describeCron(expr: string, tz = 'UTC'): string {
 }
 
 // ─── Next run from cron expr ──────────────────────────────────────────────────
+// Valid cron chars: digits, *, /, -, commas, and spaces only
+const CRON_VALID = /^[\d\*\/\-, ]+$/
+
+function isValidCron(expr: string): boolean {
+  return CRON_VALID.test(expr) && expr.trim().split(/\s+/).length >= 5
+}
+
 function computeNextRun(expr: string, tz: string): string | null {
+  // Reject invalid cron expressions to prevent shell injection
+  if (!isValidCron(expr)) return null
   try {
-    // Use cronic/cron-parser if available — fallback to safeExec
-    const result = safeExec(
-      `python3 -c "
-from croniter import croniter
+    // Escape single quotes in expr for Python string safety
+    const safeExpr = expr.replace(/'/g, "'\\''")
+    const safeTz = tz.replace(/'/g, "'\\''")
+    const pythonScript = `from croniter import croniter
 from datetime import datetime
 import pytz
 try:
-    zone = pytz.timezone('${tz}')
+    zone = pytz.timezone('${safeTz}')
     now = datetime.now(zone)
-    cron = croniter('${expr}', now)
+    cron = croniter('${safeExpr}', now)
     nxt = cron.get_next(datetime)
     print(nxt.isoformat())
 except Exception as e:
     print('')
-"`
-    ).trim()
+`
+    const result = safeExecFile('python3', ['-c', pythonScript]).trim()
     return result || null
   } catch { return null }
 }
@@ -206,7 +215,7 @@ export async function GET() {
 
   // ── System cron ──────────────────────────────────────────────────────────
   try {
-    const crontab = safeExec('crontab -l')
+    const crontab = safeExecFile('crontab', ['-l'])
     const lines = crontab.split('\n').filter(l => l.trim() && !l.startsWith('#'))
     for (const line of lines) {
       const parts = line.trim().split(/\s+/)
