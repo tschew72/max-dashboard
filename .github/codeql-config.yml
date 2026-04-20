@@ -1,0 +1,25 @@
+# Evvo Labs — CodeQL Configuration
+name: "Evvo Labs Custom CodeQL Config"
+
+# Target languages
+queries:
+  - uses: security-and-quality
+
+# Paths to scan
+paths:
+  - src
+  - lib
+  - app
+  - pages
+  - api
+
+# Paths to ignore
+paths-ignore:
+  - node_modules
+  - dist
+  - build
+  - .next
+  - coverage
+  - '**/*.test.*'
+  - '**/*.spec.*'
+  - '**/*.stories.*'

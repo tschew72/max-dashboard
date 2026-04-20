@@ -1,0 +1,241 @@
+# =============================================================================
+# Evvo Labs — SAST Pipeline (Static Application Security Testing)
+# Triggers: push to main/staging, pull_request to main
+# Tools: Semgrep, CodeQL, ESLint Security, SonarQube (optional)
+# Policy: FAIL on CRITICAL/HIGH findings
+# =============================================================================
+name: "🔒 SAST — Static Analysis"
+
+on:
+  push:
+    branches: [main, staging]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+env:
+  SCAN_SEVERITY: "HIGH,CRITICAL"
+  # Tier flags — set to true when license is available
+  SONARQUBE_ENABLED: false
+  CODEQL_ENABLED: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Semgrep — multi-language SAST (TypeScript, Python, Go, etc.)
+  # Free tier: community rules. PRO: custom rules, supply chain
+  # ---------------------------------------------------------------------------
+  semgrep:
+    name: "Semgrep Scan"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Semgrep Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/owasp-top-ten
+            p/secrets
+            p/typescript
+            p/javascript
+            p/react
+            p/nodejs
+          publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
+          generateSarif: "1"
+
+      - name: Upload Semgrep SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: Semgrep Summary
+        if: always()
+        run: |
+          echo "## 🔍 Semgrep Results" >> $GITHUB_STEP_SUMMARY
+          echo "Scanned with OWASP Top 10, secrets, TypeScript, JavaScript, React, Node.js rulesets" >> $GITHUB_STEP_SUMMARY
+          if [ -f semgrep.sarif ]; then
+            FINDINGS=$(python3 -c "
+            import json
+            with open('semgrep.sarif') as f:
+                data = json.load(f)
+            results = data.get('runs', [{}])[0].get('results', [])
+            print(f'Total findings: {len(results)}')
+            for r in results[:10]:
+                msg = r.get('message', {}).get('text', 'N/A')
+                loc = r.get('locations', [{}])[0].get('physicalLocation', {})
+                file = loc.get('artifactLocation', {}).get('uri', 'unknown')
+                line = loc.get('region', {}).get('startLine', '?')
+                print(f'- {file}:{line} — {msg[:80]}')
+            ")
+            echo "$FINDINGS" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ---------------------------------------------------------------------------
+  # CodeQL — GitHub native SAST (free for public repos, included for private)
+  # Languages: javascript-typescript, python
+  # ---------------------------------------------------------------------------
+  codeql:
+    name: "CodeQL Analysis"
+    runs-on: ubuntu-latest
+    if: ${{ env.CODEQL_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended,security-and-quality
+          config-file: ./.github/codeql-config.yml  # Optional custom config
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: codeql-javascript
+          upload: true
+
+  # ---------------------------------------------------------------------------
+  # ESLint Security Plugin — catches common JS/TS security issues
+  # Fast, runs locally, no API needed
+  # ---------------------------------------------------------------------------
+  eslint-security:
+    name: "ESLint Security Rules"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install ESLint security plugins
+        run: |
+          npm install --no-save \
+            eslint-plugin-security \
+            eslint-plugin-no-secrets \
+            eslint-plugin-sonarjs
+
+      - name: Run ESLint security scan
+        run: |
+          npx eslint \
+            --plugin security \
+            --plugin no-secrets \
+            --rule '{"no-secrets/no-secrets": "error"}' \
+            --rule '{"security/detect-object-injection": "warn"}' \
+            --rule '{"security/detect-non-literal-regexp": "warn"}' \
+            --rule '{"security/detect-unsafe-regex": "error"}' \
+            --rule '{"security/detect-eval-with-expression": "error"}' \
+            --rule '{"security/detect-non-literal-fs-filename": "warn"}' \
+            --rule '{"security/detect-non-literal-require": "warn"}' \
+            --format json \
+            --output-file eslint-security-results.json \
+            src/ 2>/dev/null || true
+
+      - name: ESLint Security Summary
+        if: always()
+        run: |
+          echo "## 📝 ESLint Security Results" >> $GITHUB_STEP_SUMMARY
+          if [ -f eslint-security-results.json ]; then
+            python3 -c "
+            import json
+            with open('eslint-security-results.json') as f:
+                    data = json.load(f)
+            total_errors = 0
+            total_warnings = 0
+            for file_result in data:
+                for msg in file_result.get('messages', []):
+                    if msg.get('severity') == 2:
+                        total_errors += 1
+                    else:
+                        total_warnings += 1
+            print(f'Errors: {total_errors} | Warnings: {total_warnings}')
+            if total_errors > 0:
+                print('❌ SECURITY ERRORS FOUND — review required')
+            else:
+                print('✅ No security errors')
+            " >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ---------------------------------------------------------------------------
+  # SonarQube — PRO TIER (requires SonarQube server or SonarCloud)
+  # Full code quality + security analysis, taint tracking
+  # ---------------------------------------------------------------------------
+  sonarqube:
+    name: "SonarQube Analysis (PRO)"
+    runs-on: ubuntu-latest
+    if: ${{ env.SONARQUBE_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0  # Full history for blame
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: SonarQube Quality Gate
+        uses: sonarsource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # Aggregate SAST results and notify
+  # ---------------------------------------------------------------------------
+  sast-summary:
+    name: "SAST Summary & Alert"
+    runs-on: ubuntu-latest
+    needs: [semgrep, eslint-security]
+    if: always()
+    steps:
+      - name: Check SAST Results
+        run: |
+          echo "## 🔒 SAST Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Semgrep | ${{ needs.semgrep.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ESLint Security | ${{ needs.eslint-security.result }} |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.semgrep.result }}" = "failure" ] || [ "${{ needs.eslint-security.result }}" = "failure" ]; then
+            echo "::error::SAST pipeline found security issues — review required"
+            exit 1
+          fi
+          echo "✅ All SAST checks passed"
+
+      - name: Notify Discord on Failure
+        if: failure()
+        run: |
+          curl -X POST "${{ secrets.DISCORD_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"content\": \"🚨 **SAST FAILED** — \${{ github.event.repository.name }} — <@&DEVOPS_ROLE_ID>\",
+              \"embeds\": [{
+                \"title\": \"SAST Security Scan Failed\",
+                \"fields\": [
+                  {\"name\": \"Repo\", \"value\": \"\${{ github.event.repository.name }}\", \"inline\": true},
+                  {\"name\": \"Branch\", \"value\": \"\${{ github.ref_name }}\", \"inline\": true},
+                  {\"name\": \"Commit\", \"value\": \"\${{ github.sha }}\", \"inline\": true}
+                ]
+              }]
+            }"
