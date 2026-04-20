@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { writeFileSync, readFileSync, existsSync } from 'fs'
 import { prisma } from '@/lib/db'
 import { createActivity } from '@/lib/activity'
@@ -18,7 +18,7 @@ function readQueue(): Record<string, unknown>[] {
 function writeQueue(items: Record<string, unknown>[]) {
   try {
     const dir = QUEUE_PATH.split('/').slice(0, -1).join('/')
-    execSync(`mkdir -p ${dir}`)
+    execFileSync('mkdir', ['-p', dir])
     writeFileSync(QUEUE_PATH, JSON.stringify(items, null, 2))
   } catch { /* best-effort */ }
 }
@@ -101,11 +101,12 @@ export async function POST(
       writeQueue(queue)
     }
 
-    // Send Discord message to Max
+    // Send Discord message to Max — use execFileSync with explicit argv to prevent shell injection
     const message = formatTaskForMax(task as unknown as Record<string, unknown>, instructions)
     try {
-      execSync(
-        `openclaw message send --channel discord --target ${DISCORD_CHANNEL} --message ${JSON.stringify(message)}`,
+      execFileSync(
+        'openclaw',
+        ['message', 'send', '--channel', 'discord', '--target', DISCORD_CHANNEL, '--message', message],
         { timeout: 10000 }
       )
     } catch (e) {
